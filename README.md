@@ -4,7 +4,7 @@ persistent-variables
 1 Overview 
 -----------
 
-Persistent variables can be serialize to and from streams.  
+Persistent variables can be serialized to and from streams.  
 
 They come with niceties, like restarts for failed serialization, late binding (loaded values are cached until the variable
 is defined), and a test suite.
