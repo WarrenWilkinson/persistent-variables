@@ -1,0 +1,1408 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+               "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<title>persistent-variables</title>
+<meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1"/>
+<meta name="title" content="persistent-variables"/>
+<meta name="generator" content="Org-mode"/>
+<meta name="generated" content="2013-02-03T17:40-0700"/>
+<meta name="author" content="Warren Wilkinson"/>
+<meta name="description" content=""/>
+<meta name="keywords" content=""/>
+<style type="text/css">
+ <!--/*--><![CDATA[/*><!--*/
+  html { font-family: Times, serif; font-size: 12pt; }
+  .title  { text-align: center; }
+  .todo   { color: red; }
+  .done   { color: green; }
+  .tag    { background-color: #add8e6; font-weight:normal }
+  .target { }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .right  {margin-left:auto; margin-right:0px;  text-align:right;}
+  .left   {margin-left:0px;  margin-right:auto; text-align:left;}
+  .center {margin-left:auto; margin-right:auto; text-align:center;}
+  p.verse { margin-left: 3% }
+  pre {
+	border: 1pt solid #AEBDCC;
+	background-color: #F3F5F7;
+	padding: 5pt;
+	font-family: courier, monospace;
+        font-size: 90%;
+        overflow:auto;
+  }
+  table { border-collapse: collapse; }
+  td, th { vertical-align: top;  }
+  th.right  { text-align:center;  }
+  th.left   { text-align:center;   }
+  th.center { text-align:center; }
+  td.right  { text-align:right;  }
+  td.left   { text-align:left;   }
+  td.center { text-align:center; }
+  dt { font-weight: bold; }
+  div.figure { padding: 0.5em; }
+  div.figure p { text-align: center; }
+  div.inlinetask {
+    padding:10px;
+    border:2px solid gray;
+    margin:10px;
+    background: #ffffcc;
+  }
+  textarea { overflow-x: auto; }
+  .linenr { font-size:smaller }
+  .code-highlighted {background-color:#ffff00;}
+  .org-info-js_info-navigation { border-style:none; }
+  #org-info-js_console-label { font-size:10px; font-weight:bold;
+                               white-space:nowrap; }
+  .org-info-js_search-highlight {background-color:#ffff00; color:#000000;
+                                 font-weight:bold; }
+  /*]]>*/-->
+</style>
+<style media="screen" type="text/css">
+pre.src-lisp {
+    background-color: #102e4e;
+    color: white
+}
+</style>
+<script type="text/javascript">
+/*
+@licstart  The following is the entire license notice for the
+JavaScript code in this tag.
+
+Copyright (C) 2012  Free Software Foundation, Inc.
+
+The JavaScript code in this tag is free software: you can
+redistribute it and/or modify it under the terms of the GNU
+General Public License (GNU GPL) as published by the Free Software
+Foundation, either version 3 of the License, or (at your option)
+any later version.  The code is distributed WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU GPL for more details.
+
+As additional permission under GNU GPL version 3 section 7, you
+may distribute non-source (e.g., minimized or compacted) forms of
+that code without the copy of the GNU GPL normally required by
+section 4, provided you include this license notice and a URL
+through which recipients can access the Corresponding Source.
+
+
+@licend  The above is the entire license notice
+for the JavaScript code in this tag.
+*/
+<!--/*--><![CDATA[/*><!--*/
+ function CodeHighlightOn(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(null != target) {
+     elem.cacheClassElem = elem.className;
+     elem.cacheClassTarget = target.className;
+     target.className = "code-highlighted";
+     elem.className   = "code-highlighted";
+   }
+ }
+ function CodeHighlightOff(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(elem.cacheClassElem)
+     elem.className = elem.cacheClassElem;
+   if(elem.cacheClassTarget)
+     target.className = elem.cacheClassTarget;
+ }
+/*]]>*///-->
+</script>
+
+</head>
+<body>
+
+<div id="preamble">
+
+</div>
+
+<div id="content">
+<h1 class="title">persistent-variables</h1>
+
+
+<div id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#sec-1">1 Overview</a>
+<ul>
+<li><a href="#sec-1-1">1.1 Features</a></li>
+</ul>
+</li>
+<li><a href="#sec-2">2 Installation</a>
+<ul>
+<li><a href="#sec-2-1">2.1 Quick Lisp</a></li>
+<li><a href="#sec-2-2">2.2 Gentoo</a></li>
+<li><a href="#sec-2-3">2.3 Ubunto</a></li>
+<li><a href="#sec-2-4">2.4 Manual Installation</a></li>
+<li><a href="#sec-2-5">2.5 Running the Tests</a></li>
+<li><a href="#sec-2-6">2.6 Getting Support</a></li>
+</ul>
+</li>
+<li><a href="#sec-3">3 Implementation</a>
+<ul>
+<li><a href="#sec-3-1">3.1 persist - tracking variables to persist.</a></li>
+<li><a href="#sec-3-2">3.2 pv-save - saving variables to a stream</a></li>
+<li><a href="#sec-3-3">3.3 pv-load - loading variables from a stream</a></li>
+<li><a href="#sec-3-4">3.4 defpvar &ndash; easily define and register persistent variables</a></li>
+</ul>
+</li>
+<li><a href="#sec-4">4 Tests</a>
+<ul>
+<li><a href="#sec-4-1">4.1 Test Framework</a></li>
+<li><a href="#sec-4-2">4.2 Test Context</a></li>
+<li><a href="#sec-4-3">4.3 Test p-vars are definable</a></li>
+<li><a href="#sec-4-4">4.4 Test p-vars can be saved and loaded</a></li>
+<li><a href="#sec-4-5">4.5 Test p-vars can load things from different packages</a></li>
+<li><a href="#sec-4-6">4.6 Test p-vars can be late bound</a></li>
+<li><a href="#sec-4-7">4.7 Test p-vars ignores unbound variables</a></li>
+<li><a href="#sec-4-8">4.8 Test p-vars errors on unprintable variables</a></li>
+<li><a href="#sec-4-9">4.9 Test p-vars ignores deleted variables</a></li>
+<li><a href="#sec-4-10">4.10 Test p-vars provides loading restarts</a></li>
+</ul>
+</li>
+<li><a href="#sec-5">5 License</a></li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Overview</h2>
+<div class="outline-text-2" id="text-1">
+
+
+<p>
+Persistent variables can be serialized to and from streams.  
+</p>
+<p>
+They come with niceties, like restarts for failed serialization, late binding (loaded values are cached until the variable
+is defined), and a test suite.
+</p>
+
+
+
+<pre class="src src-lisp">(defpvar *my-account-password*) <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Don't give it a value in the source file!</span>
+
+<span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">At the Repl: </span>
+(setf *my-account-password* <span style="color: #deb887;">"the-password"</span>)
+(<span style="color: #00bfff; font-weight: bold;">with-open-file</span> (s <span style="color: #deb887;">"/path/to/somewhere/else"</span>)
+  (p-save s))
+
+<span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Later, at startup:</span>
+(<span style="color: #00bfff; font-weight: bold;">with-open-file</span> (s <span style="color: #deb887;">"/path/to/somewhere/else"</span>)
+  (p-load s))
+</pre>
+
+
+
+</div>
+
+<div id="outline-container-1-1" class="outline-3">
+<h3 id="sec-1-1"><span class="section-number-3">1.1</span> Features</h3>
+<div class="outline-text-3" id="text-1-1">
+
+
+<ul>
+<li>Group variables into 'sets' that are saved and loaded independently.
+</li>
+<li>Late binding of variables: load you the saved values before loading your code.
+</li>
+<li>Ignores deleted/missing symbols and unbound symbols.  
+</li>
+<li>Errors for serialization and deserialization problems, with nice restarts.
+</li>
+<li>Low line of code count (around 100 lines of code)
+</li>
+</ul>
+
+
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Installation</h2>
+<div class="outline-text-2" id="text-2">
+
+
+</div>
+
+<div id="outline-container-2-1" class="outline-3">
+<h3 id="sec-2-1"><span class="section-number-3">2.1</span> Quick Lisp</h3>
+<div class="outline-text-3" id="text-2-1">
+
+
+<p>
+Install <a href="http://www.quicklisp.org/beta/">Quick Lisp</a> and then run:
+</p>
+
+
+
+<pre class="src src-lisp">(ql:quickload 'persistent-variables)
+</pre>
+
+
+<p>
+If you have problems, see the <a href="#support">support</a> section, and you may want to <a href="#runtests">run the tests</a>.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2-2" class="outline-3">
+<h3 id="sec-2-2"><span class="section-number-3">2.2</span> Gentoo</h3>
+<div class="outline-text-3" id="text-2-2">
+
+
+<p>
+As root, 
+</p>
+
+
+
+<pre class="src src-sh">emerge persistent-variables
+</pre>
+
+
+<p>
+Once the emerge is finished, the package can be loaded using ASDF:
+</p>
+
+
+<pre class="src src-lisp">(asdf:operate 'asdf:load-op <span style="color: #f08080;">:persistent-variables</span>)
+</pre>
+
+
+<p>
+If you have problems, see the <a href="#support">support</a> section, otherwise you may want to <a href="#runtests">run the tests</a>.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2-3" class="outline-3">
+<h3 id="sec-2-3"><span class="section-number-3">2.3</span> Ubunto</h3>
+<div class="outline-text-3" id="text-2-3">
+
+
+
+
+
+<pre class="src src-sh">sudo apt-get install persistent-variables
+</pre>
+
+
+<p>
+Once the installation is finished, the package is loadable using ASDF:
+</p>
+
+
+
+<pre class="src src-lisp">(asdf:operate 'asdf:load-op <span style="color: #f08080;">:persistent-variables</span>)
+</pre>
+
+
+<p>
+If you have problems, see the <a href="#support">support</a> section, otherwise you may want to <a href="#runtests">run the tests</a>.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2-4" class="outline-3">
+<h3 id="sec-2-4"><span class="section-number-3">2.4</span> Manual Installation</h3>
+<div class="outline-text-3" id="text-2-4">
+
+
+<p>
+In summary: Untar the <a href="https://github.com/WarrenWilkinson/persistent-variables/archive/master.tar.gz">.tar</a> package and then symlink the .asd files into a place where ASDF can find them. 
+</p>
+<ol>
+<li>Untar the files where you want them to be.  On windows download the <a href="https://github.com/WarrenWilkinson/persistent-variables/archive/master.zip">.zip</a> and unzip it instead, it's the same files.
+</li>
+<li>ASDF could be looking anywhere &ndash; it depends on your setup.  Run this in your lisp repl to get a clue
+     as to where ASDF is seeking libraries<sup><a class="footref" name="fnr-.1" href="#fn-.1">1</a></sup>:
+
+
+
+
+<pre class="src src-lisp">(mapcan #'funcall asdf:*default-source-registries*)
+</pre>
+
+
+</li>
+<li>Symlink the .asd files to the source directory. If you use windows, <a href="http://bc.tech.coop/blog/041113.html">these instructions on symlink alternatives apply to you</a>.
+</li>
+</ol>
+
+
+<p>
+Once the files are in place, the package can be loaded with ASDF by:
+</p>
+
+
+<pre class="src src-lisp">(asdf:operate 'asdf:load-op <span style="color: #f08080;">:persistent-variables</span>)
+</pre>
+
+
+<p>
+If you have problems, see the <a href="#support">support</a> section.  If you don't have problems you may want to <a href="#runtests">run the tests</a> anyway, because you can.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2-5" class="outline-3">
+<h3 id="sec-2-5"><span class="section-number-3">2.5</span> Running the Tests</h3>
+<div class="outline-text-3" id="text-2-5">
+
+
+<p>
+Once the system is loaded, it can be tested with asdf. 
+</p>
+
+
+
+<pre class="src src-lisp">(asdf:operate 'asdf:test-op <span style="color: #f08080;">:persistent-variables</span>)
+</pre>
+
+
+<p>
+This should display something like the following. There should
+be <b>zero failures</b>, if you have failures see the <a href="#support">support</a> section
+of this document.
+</p>
+
+
+
+<pre class="src src-sh">RUNNING PERSISTENT-VARIABLE TESTS...
+PERSISTENT-VARIABLE TEST RESULTS: 
+     Tests: 8
+   Success: 8
+  Failures: 0
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-2-6" class="outline-3">
+<h3 id="sec-2-6"><span class="section-number-3">2.6</span> Getting Support</h3>
+<div class="outline-text-3" id="text-2-6">
+
+
+<p>
+You can find support on this libraries <a href="http://warrenwilkinson.ca/persistent-variables">website</a> and/or <a href="https://github.com/WarrenWilkinson/persistent-variables">github</a> repository. Or you can email <a href="mailto:warrenwilkinson@gmail.com">Warren Wilkinson</a>.
+</p>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Implementation</h2>
+<div class="outline-text-2" id="text-3">
+
+
+</div>
+
+<div id="outline-container-3-1" class="outline-3">
+<h3 id="sec-3-1"><span class="section-number-3">3.1</span> persist - tracking variables to persist.</h3>
+<div class="outline-text-3" id="text-3-1">
+
+
+<p>
+Persisted variables are tracked as a lists. There can be multiple lists, so
+the lists themselves are stored in a hash table.
+</p>
+
+
+
+<pre class="src src-lisp">(<span style="color: #00bfff; font-weight: bold;">defvar</span> <span style="color: #4eee94;">*persisted*</span> (make-hash-table))
+(<span style="color: #00bfff; font-weight: bold;">defvar</span> <span style="color: #4eee94;">*default-set*</span> <span style="color: #f08080;">:default</span>)
+
+(<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">persist</span> (name <span style="color: #98f5ff;">&amp;optional</span> (set *default-set*))
+  <span style="color: #ffebcd;">"Add a variable to persistence serialization."</span>
+  (push name (gethash set *persisted* nil)))
+
+(<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">unpersist</span> (name <span style="color: #98f5ff;">&amp;optional</span> (set *default-set*))
+  <span style="color: #ffebcd;">"Remove a variable from persistence serialization."</span>
+  (setf (gethash set *persisted*)
+        (remove name (gethash set *persisted*))))
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-3-2" class="outline-3">
+<h3 id="sec-3-2"><span class="section-number-3">3.2</span> pv-save - saving variables to a stream</h3>
+<div class="outline-text-3" id="text-3-2">
+
+
+<p>
+Variables are written as ("package" "name" "readable value"). This avoids using symbols or packages, which may not
+exist when we come to load the data again.
+</p>
+<p>
+To save, p-save iterates all the variables in the set.  If the variable has a package (e.g. it's not in a package
+that was deleted) and has a value, it gets serialized.
+</p>
+
+
+
+<pre class="src src-lisp">(<span style="color: #00bfff; font-weight: bold;">flet</span> ((serialize (var)
+         (list (package-name (symbol-package var))
+               (symbol-name var)
+               (<span style="color: #00bfff; font-weight: bold;">let</span> ((*package* (find-package <span style="color: #f08080;">:cl-user</span>))
+                     (*print-readably* t))
+                 (prin1-to-string (symbol-value var))))))
+  (<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">pv-save</span> (stream <span style="color: #98f5ff;">&amp;optional</span> (set *default-set*))
+    <span style="color: #ffebcd;">"Save all defpvar values to stream."</span>
+    (<span style="color: #00bfff; font-weight: bold;">dolist</span> (var (remove-duplicates (gethash set *persisted*)))
+      (<span style="color: #00bfff; font-weight: bold;">when</span> (and (symbol-package var) (boundp var))
+        (prin1 (serialize var) stream)
+        (terpri stream)))))
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-3-3" class="outline-3">
+<h3 id="sec-3-3"><span class="section-number-3">3.3</span> pv-load - loading variables from a stream</h3>
+<div class="outline-text-3" id="text-3-3">
+
+
+<p>
+Loading variables is more complicated: things can go wrong.
+</p>
+<ul>
+<li>What if the variable no longer exists?<sup><a class="footref" name="fnr-.2" href="#fn-.2">2</a></sup>
+</li>
+<li>What if the data is not readable? See next.
+</li>
+</ul>
+
+
+
+
+
+<pre class="src src-lisp">(<span style="color: #00bfff; font-weight: bold;">define-condition</span> <span style="color: #daa520; font-weight: bold;">unloadable-variable</span> (<span style="color: #ffff00;">error</span>)
+  ((name <span style="color: #f08080;">:initarg</span> <span style="color: #f08080;">:name</span> <span style="color: #f08080;">:reader</span> name)
+   (text <span style="color: #f08080;">:initarg</span> <span style="color: #f08080;">:text</span> <span style="color: #f08080;">:reader</span> text)
+   (expression <span style="color: #f08080;">:initarg</span> <span style="color: #f08080;">:expression</span> <span style="color: #f08080;">:reader</span> expression)))
+
+(<span style="color: #00bfff; font-weight: bold;">defmethod</span> <span style="color: #daa520; font-weight: bold;">print-object</span> ((c unloadable-variable) stream)
+  (format stream <span style="color: #deb887;">"Unloadable variable ~s: ~a in ~s"</span>
+          (<span style="color: #00bfff; font-weight: bold;">let</span> ((*package* (find-package <span style="color: #f08080;">:cl-user</span>)))
+            (prin1-to-string (name c)))
+          (text c)
+          (expression c)))
+
+(<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">pv-read</span> (symbol value)
+  <span style="color: #ffebcd;">"Attempt to read a saved value."</span>
+  (<span style="color: #00bfff; font-weight: bold;">restart-case</span>
+      (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (values 
+                     (<span style="color: #00bfff; font-weight: bold;">let</span> ((*package* (find-package <span style="color: #f08080;">:cl-user</span>)))
+                       (read-from-string value))
+                     t)
+        (<span style="color: #ffff00;">error</span> (e) (<span style="color: #00bfff; font-weight: bold;">let*</span> ((msg (princ-to-string e))
+                          (msg (subseq msg 0 (position #\Newline msg))))
+                     (<span style="color: #ffff00;">error</span> 'unloadable-variable 
+                            <span style="color: #f08080;">:name</span> symbol <span style="color: #f08080;">:text</span> msg <span style="color: #f08080;">:expression</span> value))))
+    (skip-variable ()
+      <span style="color: #f08080;">:report</span> <span style="color: #deb887;">"Skip loading this variable."</span>
+      (values nil nil))
+    (use-value (value) 
+      <span style="color: #f08080;">:report</span> <span style="color: #deb887;">"Specify a value to use."</span>
+      <span style="color: #f08080;">:interactive</span> (<span style="color: #00bfff; font-weight: bold;">lambda</span> ()
+                     (format t <span style="color: #deb887;">"~&amp;Value for ~s: "</span> symbol)
+                     (list (eval (read))))
+      (values value t))))
+</pre>
+
+
+<p>
+p-load processes the stream, reading in saved variables. 
+</p>
+<p>
+For each variable, p-lead attempts to 1) find the variable and 2) set it. Variables
+that can't be found (and thus can't be set) are stored as a list placed into the hash table
+\*loaded\*.
+</p>
+
+
+
+<pre class="src src-lisp">(<span style="color: #00bfff; font-weight: bold;">defvar</span> <span style="color: #4eee94;">*loaded*</span> (make-hash-table)
+  <span style="color: #ffebcd;">"Store loaded values that are missing their corresponding variables."</span>)
+
+(<span style="color: #00bfff; font-weight: bold;">flet</span> ((pv-set (package symbol value)
+         <span style="color: #deb887;">"Attempt to set package:symbol to value. Return t if done right."</span>
+         (<span style="color: #00bfff; font-weight: bold;">let*</span> ((p (find-package package))
+                (s (and p (find-symbol symbol p))))
+           (<span style="color: #00bfff; font-weight: bold;">multiple-value-bind</span> (val found-p)
+               (and s (pv-read s value))
+             (<span style="color: #00bfff; font-weight: bold;">when</span> found-p (set s val) t)))))
+  (<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">pv-load</span> (stream <span style="color: #98f5ff;">&amp;optional</span> (set *default-set*))
+    <span style="color: #ffebcd;">"Load variable bindings from stream and set persistent-variables.."</span>
+    (<span style="color: #00bfff; font-weight: bold;">loop</span> for (package symbol value) = (read stream nil '(<span style="color: #f08080;">:eof</span> <span style="color: #f08080;">:eof</span> <span style="color: #f08080;">:eof</span>))
+       until (eq package <span style="color: #f08080;">:eof</span>)
+       for did-set? = (pv-set package symbol value)
+       unless did-set?
+       collect (list package symbol value) into bindings
+       finally (setf (gethash (symbol-name set) *loaded*) bindings))))
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-3-4" class="outline-3">
+<h3 id="sec-3-4"><span class="section-number-3">3.4</span> defpvar &ndash; easily define and register persistent variables</h3>
+<div class="outline-text-3" id="text-3-4">
+
+
+<p>
+The macro defpvar defines a variable, registers it for persistence, and loads any
+cached value it may already have.
+</p>
+<p>
+It's important to notice that defpvar also <b>forgets</b> the cached value.  This is so
+that defpvars first take on any cached loaded value, and only upon re-evalution take the 
+value present in the source code. In summary:
+</p>
+<ol>
+<li>On the first evaluation, defpvar's take the <b>loaded</b> value, regardless of what is specified. 
+</li>
+<li>On subsequent evaluations, defpvar's take their <b>written</b> default.
+</li>
+</ol>
+
+
+<p>
+This applies only to late binding &ndash; when you've already loaded the saved variables before loading 
+your code.  If you load code first, none of this matters: the variables are set to the loaded data.
+</p>
+
+
+
+<pre class="src src-lisp">(<span style="color: #00bfff; font-weight: bold;">defmacro</span> <span style="color: #daa520; font-weight: bold;">defpvar</span> (name 
+                   <span style="color: #98f5ff;">&amp;optional</span>
+                     (val ''unbind)
+                     (doc nil doc-supplied-p)
+                     (set '*default-set*))
+  <span style="color: #ffebcd;">"Define persistent variable, it'll take it's cached value if available."</span>
+  (<span style="color: #00bfff; font-weight: bold;">let</span> ((pset (gensym))  (value (gensym))  (found-p (gensym)))
+    `(<span style="color: #00bfff; font-weight: bold;">let</span> ((,pset ,set))
+       (<span style="color: #00bfff; font-weight: bold;">defvar</span> ,name
+         (<span style="color: #00bfff; font-weight: bold;">multiple-value-bind</span> (,value ,found-p)
+             (cached-string *package* ',name ,pset)
+           (<span style="color: #00bfff; font-weight: bold;">if</span> ,found-p (pv-read ',name ,value) ,val))
+         ,@(<span style="color: #00bfff; font-weight: bold;">if</span> doc-supplied-p (list doc)))
+
+       (<span style="color: #00bfff; font-weight: bold;">when</span> (eq (symbol-value ',name) 'unbind) (makunbound ',name))
+       (persist ',name ,pset)
+       (cached-string-forget ',name ,pset)
+       ',name)))
+</pre>
+
+
+<p>
+The extra functions defpvar refers to, <i>cached-value-forget</i> and <i>cached-value</i>, are defined as:
+</p>
+
+
+
+<pre class="src src-lisp">(<span style="color: #00bfff; font-weight: bold;">eval-when</span> (<span style="color: #f08080;">:compile-toplevel</span> <span style="color: #f08080;">:load-toplevel</span> <span style="color: #f08080;">:execute</span>)
+  (<span style="color: #00bfff; font-weight: bold;">flet</span> ((load-eq (a b)
+           (and (string-equal (first a) (first b))
+                (string-equal (second a) (second b)))))
+    (<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">cached-string-forget</span> (symbol
+                                 <span style="color: #98f5ff;">&amp;optional</span> (set *default-set*))
+      (setf (gethash (symbol-name set) *loaded*)
+            (remove (list (package-name (symbol-package symbol))
+                          (symbol-name symbol))
+                    (gethash (symbol-name set) *loaded*)
+                    <span style="color: #f08080;">:test</span> #'load-eq)))
+
+    (<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">cached-string</span> (package name
+                          <span style="color: #98f5ff;">&amp;optional</span> (set *default-set*))
+      (<span style="color: #00bfff; font-weight: bold;">let</span> ((bind (find (list (package-name (find-package package))
+                              (symbol-name name))
+                        (gethash (symbol-name set) *loaded*)
+                        <span style="color: #f08080;">:test</span> #'load-eq)))
+        (values (third bind) (not (null bind)))))))
+</pre>
+
+
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Tests</h2>
+<div class="outline-text-2" id="text-4">
+
+
+</div>
+
+<div id="outline-container-4-1" class="outline-3">
+<h3 id="sec-4-1"><span class="section-number-3">4.1</span> Test Framework</h3>
+<div class="outline-text-3" id="text-4-1">
+
+
+<p>
+The test framework deals with the running of tests and printing of results.
+The tests are discussed in their own subheadings.
+</p>
+
+
+
+<pre class="src src-lisp">(<span style="color: #00bfff; font-weight: bold;">defstruct</span> <span style="color: #98f5ff;">results</span>
+  (tests 0)
+  (failures nil))
+(<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">results-failure-count</span> (results)
+  (length (results-failures results)))
+(<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">results-successes</span> (results)
+  (- (results-tests results)
+     (results-failure-count results)))
+
+(<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">runtest</span> (fun results)
+  (<span style="color: #00bfff; font-weight: bold;">let*</span> ((success t)
+         (output (<span style="color: #00bfff; font-weight: bold;">with-output-to-string</span> (*standard-output*)
+                   (<span style="color: #00bfff; font-weight: bold;">unwind-protect</span> 
+                        (setf success (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (funcall fun)
+                                        (<span style="color: #ffff00;">error</span> (e) (princ e) nil)))))))
+    (make-results
+     <span style="color: #f08080;">:tests</span> (1+ (results-tests results))
+     <span style="color: #f08080;">:failures</span> (<span style="color: #00bfff; font-weight: bold;">if</span> success
+                   (results-failures results)
+                   (acons fun output (results-failures results))))))
+
+(<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">present-failures</span> (results)
+  (format t <span style="color: #deb887;">"~%PERSISTENT-VARIABLES FAILURES:~%"</span>)
+  (<span style="color: #00bfff; font-weight: bold;">loop</span> for (fn . problems) in (results-failures results)
+        do (format t <span style="color: #deb887;">"~%~a~a~%"</span> fn problems)))
+(<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">present-results</span> (results)
+  (format t <span style="color: #deb887;">"~%PERSISTENT-VARIABLES TEST RESULTS:"</span>)
+  (format t <span style="color: #deb887;">"~%     Tests: ~a~%   Success: ~a~%  Failures: ~a"</span> 
+          (results-tests results)
+          (results-successes results)
+          (results-failure-count results))
+  (<span style="color: #00bfff; font-weight: bold;">when</span> (results-failures results)
+    (present-failures results)))
+
+(<span style="color: #00bfff; font-weight: bold;">defun</span> <span style="color: #daa520; font-weight: bold;">run-tests</span> ()
+  (format t <span style="color: #deb887;">"~%RUNNING PERSISTENT-VARIABLES TESTS..."</span>)
+  (present-results 
+   (reduce #'(<span style="color: #00bfff; font-weight: bold;">lambda</span> (results function) (runtest function results))
+           *tests* <span style="color: #f08080;">:initial-value</span> (make-results))))
+</pre>
+
+
+<p>
+Tests are just functions, pushed onto a list.
+</p>
+
+
+
+<pre class="src src-lisp">(<span style="color: #00bfff; font-weight: bold;">defvar</span> <span style="color: #4eee94;">*tests*</span> nil)
+(<span style="color: #00bfff; font-weight: bold;">defvar</span> <span style="color: #4eee94;">*success*</span>)
+(<span style="color: #00bfff; font-weight: bold;">defmacro</span> <span style="color: #daa520; font-weight: bold;">deftest</span> (name () <span style="color: #98f5ff;">&amp;rest</span> body)
+  `(<span style="color: #00bfff; font-weight: bold;">progn</span> (<span style="color: #00bfff; font-weight: bold;">defun</span> ,name () ,@body) (pushnew ',name *tests*)))
+
+(<span style="color: #00bfff; font-weight: bold;">defmacro</span> <span style="color: #daa520; font-weight: bold;">expect</span> (code)
+  `(or ,code
+       (<span style="color: #00bfff; font-weight: bold;">progn</span>
+         (setf *success* nil)
+         (format t ,(format nil <span style="color: #deb887;">"~%   unexpected false in:~%    ~s"</span> code)))))
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-4-2" class="outline-3">
+<h3 id="sec-4-2"><span class="section-number-3">4.2</span> Test Context</h3>
+<div class="outline-text-3" id="text-4-2">
+
+
+<p>   
+Tests work in their own persistence package. They test compile-time, load-time and execute-time semantics, so they use 
+and compile a temporary file to do that. 
+</p>
+
+
+
+<pre class="src src-lisp">(<span style="color: #00bfff; font-weight: bold;">defvar</span> <span style="color: #4eee94;">*temp-file*</span> #p<span style="color: #ffebcd;">"/tmp/persister-test.lisp"</span>)
+(<span style="color: #00bfff; font-weight: bold;">defvar</span> <span style="color: #4eee94;">*temp-fasl*</span> #p<span style="color: #ffebcd;">"/tmp/persister-test.fasl"</span>)
+
+(<span style="color: #00bfff; font-weight: bold;">defmacro</span> <span style="color: #daa520; font-weight: bold;">defptest</span> (name () <span style="color: #98f5ff;">&amp;rest</span> body)
+  (<span style="color: #00bfff; font-weight: bold;">let</span> ((compile (assoc <span style="color: #f08080;">:compile</span> body)))
+    `(deftest ,name () 
+       (remhash 'test persistent-variables::*persisted*)
+       (remhash 'test-1 persistent-variables::*persisted*)
+       (remhash 'test-2 persistent-variables::*persisted*)
+       (<span style="color: #00bfff; font-weight: bold;">when</span> (find-package <span style="color: #f08080;">:persistent-variables.test.workspace</span>) 
+         (delete-package <span style="color: #f08080;">:persistent-variables.test.workspace</span>))
+       (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test)
+             (persistent-variables::*loaded* (make-hash-table <span style="color: #f08080;">:test</span> #'equalp))
+             (*success* t))
+         (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set* *success*
+                           persistent-variables::*loaded*))
+         (<span style="color: #00bfff; font-weight: bold;">unwind-protect</span> 
+              (<span style="color: #00bfff; font-weight: bold;">progn</span>
+                <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">If there is compile time stuff, compile it.</span>
+                (<span style="color: #00bfff; font-weight: bold;">with-open-file</span> (s *temp-file* <span style="color: #f08080;">:direction</span> <span style="color: #f08080;">:output</span> <span style="color: #f08080;">:if-exists</span> 
+                                   <span style="color: #f08080;">:supersede</span> <span style="color: #f08080;">:if-does-not-exist</span> <span style="color: #f08080;">:create</span>)
+                  (write-sequence
+                   ,(prin1-to-string
+                     `(<span style="color: #00bfff; font-weight: bold;">defpackage</span> <span style="color: #98f5ff;">:persistent-variables.test.workspace</span>
+                        (<span style="color: #f08080;">:use</span> <span style="color: #f08080;">:cl</span> <span style="color: #f08080;">:persistent-variables</span>
+                              <span style="color: #f08080;">:persistent-variables.test</span>))) s)
+                  (write-sequence
+                   ,(prin1-to-string
+                     `(<span style="color: #00bfff; font-weight: bold;">in-package</span> <span style="color: #f08080;">:persistent-variables.test.workspace</span>)) s)
+                  ,@(mapcar #'(<span style="color: #00bfff; font-weight: bold;">lambda</span> (code) `(write-sequence
+                                          ,(prin1-to-string code) s))
+                            (cdr compile)))
+                (compile-file *temp-file* <span style="color: #f08080;">:output-file</span> *temp-fasl*)
+
+                <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Now load it and eval/run the execute statements</span>
+                ,@(mapcan
+                   #'(<span style="color: #00bfff; font-weight: bold;">lambda</span> (execute)
+                       `((eval
+                          '(<span style="color: #00bfff; font-weight: bold;">progn</span>
+                            (load *temp-fasl*)
+                            (<span style="color: #00bfff; font-weight: bold;">let</span> ((*standard-output* *standard-output*)
+                                  (*package*
+                                   (find-package
+                                    <span style="color: #f08080;">:persistent-variables.test.workspace</span>)))
+                              (eval (read-from-string
+                                     ,(prin1-to-string
+                                       `(<span style="color: #00bfff; font-weight: bold;">progn</span> ,@(cdr execute))))))))))
+                   (remove <span style="color: #f08080;">:execute</span> body <span style="color: #f08080;">:key</span> #'car <span style="color: #f08080;">:test-not</span> #'eq))
+                *success*)
+           (delete-package <span style="color: #f08080;">:persistent-variables.test.workspace</span>))))))
+
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-4-3" class="outline-3">
+<h3 id="sec-4-3"><span class="section-number-3">4.3</span> Test p-vars are definable</h3>
+<div class="outline-text-3" id="text-4-3">
+
+
+<p>
+This test ensures pvars that are defined at compile time, show up, with correct values, when the file is loaded.
+</p>
+<p>
+Then it ensures pvars that are defined during execution time have their correct values.
+</p>
+
+
+
+<pre class="src src-lisp">(defptest p-vars-are-definable ()
+  (<span style="color: #f08080;">:compile</span>
+   (defpvar *compile-time-unbound*)
+   (defpvar *compile-time-bound* <span style="color: #f08080;">:bound</span>)
+   (defpvar *compile-time-documented* <span style="color: #f08080;">:documented</span> <span style="color: #deb887;">"documentation"</span>))
+  (<span style="color: #f08080;">:execute</span>
+   <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Still around after loading?</span>
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> *compile-time-unbound*
+              (unbound-variable () t)))
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (eq *compile-time-bound* <span style="color: #f08080;">:bound</span>)
+              (<span style="color: #ffff00;">error</span> () nil)))
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (eq *compile-time-documented* <span style="color: #f08080;">:documented</span>)
+              (<span style="color: #ffff00;">error</span> () nil)))
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (null (boundp '*compile-time-unbound*))
+             (<span style="color: #ffff00;">error</span> () nil)))
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (not (null (boundp '*compile-time-bound*)))
+             (<span style="color: #ffff00;">error</span> () nil)))
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (not (null (boundp '*compile-time-documented*)))
+             (<span style="color: #ffff00;">error</span> () nil)))
+
+   <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">How about some new variables? </span>
+   (defpvar *eval-time-unbound*)
+   (defpvar *eval-time-bound* <span style="color: #f08080;">:ev-bound</span>)
+   (defpvar *eval-time-documented* <span style="color: #f08080;">:ev-documented</span> <span style="color: #deb887;">"documentation"</span>)
+
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> *eval-time-unbound*
+             (unbound-variable () t)))
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (eq *eval-time-bound* <span style="color: #f08080;">:ev-bound</span>)
+             (<span style="color: #ffff00;">error</span> () nil)))
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (eq *eval-time-documented* <span style="color: #f08080;">:ev-documented</span>)
+             (<span style="color: #ffff00;">error</span> () nil)))
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (null (boundp '*eval-time-unbound*))
+             (<span style="color: #ffff00;">error</span> () nil)))
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (not (null (boundp '*eval-time-bound*)))
+             (<span style="color: #ffff00;">error</span> () nil)))
+   (expect (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (not (null (boundp '*eval-time-documented*)))
+             (<span style="color: #ffff00;">error</span> () nil)))))
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-4-4" class="outline-3">
+<h3 id="sec-4-4"><span class="section-number-3">4.4</span> Test p-vars can be saved and loaded</h3>
+<div class="outline-text-3" id="text-4-4">
+
+
+<p>
+Test pv-load and pv-save work in a simple case.
+</p>
+<p>
+In this test we use 2 sets of variables.  We save each set, setf them all set to nonsense and
+then load the values. 
+</p>
+<p>
+We then test to ensure they've successfully loaded their old values.
+</p>
+<p>
+Also note that unbound variables do not save/restore their unbound state. So they keep their new value!
+</p>
+
+
+
+<pre class="src src-lisp">(defptest test-p-vars-can-be-saved-and-loaded ()
+  (<span style="color: #f08080;">:compile</span>
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-1))
+     (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))
+     (defpvar *compile-time-1-unbound*)
+     (defpvar *compile-time-1-bound* <span style="color: #f08080;">:bound-1</span>)
+     (defpvar *compile-time-1-documented* <span style="color: #f08080;">:documented-1</span> <span style="color: #deb887;">"documentation"</span>))
+   (defpvar *compile-time-1-packaged* <span style="color: #f08080;">:packaged-1</span> <span style="color: #deb887;">"documentation"</span> 'test-1)
+
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-2))
+     (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))
+     (defpvar *compile-time-2-unbound*)
+     (defpvar *compile-time-2-bound* <span style="color: #f08080;">:bound-2</span>)
+     (defpvar *compile-time-2-documented* <span style="color: #f08080;">:documented-2</span> <span style="color: #deb887;">"documentation"</span>))
+   (defpvar *compile-time-2-packaged* <span style="color: #f08080;">:packaged-2</span> <span style="color: #deb887;">"documentation"</span> 'test-2))
+  (<span style="color: #f08080;">:execute</span>
+
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-1))
+     (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))   
+     (defpvar *eval-time-1-unbound*)
+     (defpvar *eval-time-1-bound*      <span style="color: #f08080;">:ev-bound-1</span>)
+     (defpvar *eval-time-1-documented* <span style="color: #f08080;">:ev-documented-1</span> <span style="color: #deb887;">"documentation"</span>))
+   (defpvar *eval-time-1-packaged*   <span style="color: #f08080;">:ev-packaged-1</span> <span style="color: #deb887;">"documentation"</span> 'test-1)
+
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-2))
+     (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))
+     (defpvar *eval-time-2-unbound*)
+     (defpvar *eval-time-2-bound*      <span style="color: #f08080;">:ev-bound-2</span>)
+     (defpvar *eval-time-2-documented* <span style="color: #f08080;">:ev-documented-2</span> <span style="color: #deb887;">"documentation"</span>))
+   (defpvar *eval-time-2-packaged*   <span style="color: #f08080;">:ev-packaged-2</span> <span style="color: #deb887;">"documentation"</span> 'test-2)
+
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((saved-1 (<span style="color: #00bfff; font-weight: bold;">with-output-to-string</span> (saved-1)
+                    (pv-save saved-1 'test-1)))
+         (saved-2 (<span style="color: #00bfff; font-weight: bold;">with-output-to-string</span> (saved-2)
+                    (pv-save saved-2 'test-2))))
+     (setf *compile-time-1-unbound* <span style="color: #f08080;">:a-new-value</span>
+           *compile-time-1-bound* <span style="color: #f08080;">:a-new-value</span>
+           *compile-time-1-documented* <span style="color: #f08080;">:a-new-value</span>
+           *compile-time-1-packaged* <span style="color: #f08080;">:a-new-value</span>)
+     (setf *eval-time-1-unbound* <span style="color: #f08080;">:a-new-value</span>
+           *eval-time-1-bound* <span style="color: #f08080;">:a-new-value</span>
+           *eval-time-1-documented* <span style="color: #f08080;">:a-new-value</span>
+           *eval-time-1-packaged* <span style="color: #f08080;">:a-new-value</span>)
+     (setf *compile-time-2-unbound* <span style="color: #f08080;">:a-new-value</span>
+           *compile-time-2-bound* <span style="color: #f08080;">:a-new-value</span>
+           *compile-time-2-documented* <span style="color: #f08080;">:a-new-value</span>
+           *compile-time-2-packaged* <span style="color: #f08080;">:a-new-value</span>)
+     (setf *eval-time-2-unbound* <span style="color: #f08080;">:a-new-value</span>
+           *eval-time-2-bound* <span style="color: #f08080;">:a-new-value</span>
+           *eval-time-2-documented* <span style="color: #f08080;">:a-new-value</span>
+           *eval-time-2-packaged* <span style="color: #f08080;">:a-new-value</span>)
+</pre>
+
+
+
+<pre class="src src-lisp"><span style="color: #5f9ea0; font-style: italic;">;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;</span>
+(expect (and (eq *compile-time-1-unbound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *compile-time-1-bound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *compile-time-1-documented* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *compile-time-1-packaged* <span style="color: #f08080;">:a-new-value</span>)))
+(expect (and (eq *eval-time-1-unbound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *eval-time-1-bound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *eval-time-1-documented* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *eval-time-1-packaged* <span style="color: #f08080;">:a-new-value</span>)))
+(<span style="color: #00bfff; font-weight: bold;">with-input-from-string</span> (s saved-1) (pv-load s 'test-1))
+(expect (and (eq *compile-time-1-unbound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *compile-time-1-bound* <span style="color: #f08080;">:bound-1</span>)
+             (eq *compile-time-1-documented* <span style="color: #f08080;">:documented-1</span>)
+             (eq *compile-time-1-packaged* <span style="color: #f08080;">:packaged-1</span>)))
+(expect (and (eq *eval-time-1-unbound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *eval-time-1-bound* <span style="color: #f08080;">:ev-bound-1</span>)
+             (eq *eval-time-1-documented* <span style="color: #f08080;">:ev-documented-1</span>)
+             (eq *eval-time-1-packaged* <span style="color: #f08080;">:ev-packaged-1</span>)))
+<span style="color: #5f9ea0; font-style: italic;">;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;</span>
+(expect (and (eq *compile-time-2-unbound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *compile-time-2-bound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *compile-time-2-documented* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *compile-time-2-packaged* <span style="color: #f08080;">:a-new-value</span>)))
+(expect (and (eq *eval-time-2-unbound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *eval-time-2-bound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *eval-time-2-documented* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *eval-time-2-packaged* <span style="color: #f08080;">:a-new-value</span>)))
+(<span style="color: #00bfff; font-weight: bold;">with-input-from-string</span> (s saved-2) (pv-load s 'test-2))
+(expect (and (eq *compile-time-2-unbound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *compile-time-2-bound* <span style="color: #f08080;">:bound-2</span>)
+             (eq *compile-time-2-documented* <span style="color: #f08080;">:documented-2</span>)
+             (eq *compile-time-2-packaged* <span style="color: #f08080;">:packaged-2</span>)))
+(expect (and (eq *eval-time-2-unbound* <span style="color: #f08080;">:a-new-value</span>)
+             (eq *eval-time-2-bound* <span style="color: #f08080;">:ev-bound-2</span>)
+             (eq *eval-time-2-documented* <span style="color: #f08080;">:ev-documented-2</span>)
+             (eq *eval-time-2-packaged* <span style="color: #f08080;">:ev-packaged-2</span>))))))
+
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-4-5" class="outline-3">
+<h3 id="sec-4-5"><span class="section-number-3">4.5</span> Test p-vars can load things from different packages</h3>
+<div class="outline-text-3" id="text-4-5">
+
+
+<p>
+This test ensures that if our variable, my-package:my-variable, saves
+other-package:other-symbol, it doesn't come back as my-package:other-symbol.
+</p>
+<p>
+We test that by setting our variable to (intern "A-SYMBOL" :cl-user), and ensuring
+that we get that value back.
+</p>
+
+
+
+<pre class="src src-lisp">(defptest test-p-vars-can-load-from-different-packages ()
+  (<span style="color: #f08080;">:compile</span>
+   (defpvar *compile-time-1-bound* (intern <span style="color: #deb887;">"A-SYMBOL"</span> <span style="color: #f08080;">:cl-user</span>)))
+  (<span style="color: #f08080;">:execute</span>
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((saved-1 (<span style="color: #00bfff; font-weight: bold;">with-output-to-string</span> (saved-1) (pv-save saved-1))))
+     (setf *compile-time-1-bound* <span style="color: #f08080;">:a-new-value</span>)
+     (expect (eq *compile-time-1-bound* <span style="color: #f08080;">:a-new-value</span>))
+     (<span style="color: #00bfff; font-weight: bold;">with-input-from-string</span> (s saved-1) (pv-load s))
+     (expect (eq *compile-time-1-bound* (intern <span style="color: #deb887;">"A-SYMBOL"</span> <span style="color: #f08080;">:cl-user</span>))))))
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-4-6" class="outline-3">
+<h3 id="sec-4-6"><span class="section-number-3">4.6</span> Test p-vars can be late bound</h3>
+<div class="outline-text-3" id="text-4-6">
+
+
+<p>
+This test ensures that late binding works. 
+</p>
+<p>
+In this test we save 2 sets of variable and we update them all and save them.
+</p>
+<p>
+Then we delete the package &ndash; and load the data. 
+</p>
+<p>
+When we execute again (and the package is reloaded), we test to ensure that 
+all the variables have their loaded values.
+</p>
+<p>
+Finally, we makunbound some of the symbols and run a copy of their definition
+code again (simulating a second evaluation of them, perhaps via slime).  This second time around,
+they should <b>not</b> use the loaded values, but instead the in-code values.
+</p>
+
+
+
+<pre class="src src-lisp">(defptest test-p-vars-can-be-late-bound ()
+  (<span style="color: #f08080;">:compile</span>
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-1))
+     (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))
+     (defpvar *compile-time-1-unbound*)
+     (defpvar *compile-time-1-bound* <span style="color: #f08080;">:bound-1</span>)
+     (defpvar *compile-time-1-documented* <span style="color: #f08080;">:documented-1</span> <span style="color: #deb887;">"documentation"</span>))
+   (defpvar *compile-time-1-packaged* <span style="color: #f08080;">:packaged-1</span> <span style="color: #deb887;">"documentation"</span> 'test-1)
+
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-2))
+     (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))
+     (defpvar *compile-time-2-unbound*)
+     (defpvar *compile-time-2-bound* <span style="color: #f08080;">:bound-2</span>)
+     (defpvar *compile-time-2-documented* <span style="color: #f08080;">:documented-2</span> <span style="color: #deb887;">"documentation"</span>))
+   (defpvar *compile-time-2-packaged* <span style="color: #f08080;">:packaged-2</span> <span style="color: #deb887;">"documentation"</span> 'test-2))
+
+  (<span style="color: #f08080;">:execute</span>
+   (format t <span style="color: #deb887;">"~%ROUND ONE"</span>)
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-1))
+     (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))   
+     (defpvar *eval-time-1-unbound*)
+     (defpvar *eval-time-1-bound*      <span style="color: #f08080;">:ev-bound-1</span>)
+     (defpvar *eval-time-1-documented* <span style="color: #f08080;">:ev-documented-1</span> <span style="color: #deb887;">"documentation"</span>))
+   (defpvar *eval-time-1-packaged*   <span style="color: #f08080;">:ev-packaged-1</span> <span style="color: #deb887;">"documentation"</span> 'test-1)
+
+</pre>
+
+
+
+<pre class="src src-lisp"> (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-2))
+   (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))
+   (defpvar *eval-time-2-unbound*)
+   (defpvar *eval-time-2-bound*      <span style="color: #f08080;">:ev-bound-2</span>)
+   (defpvar *eval-time-2-documented* <span style="color: #f08080;">:ev-documented-2</span> <span style="color: #deb887;">"documentation"</span>))
+ (defpvar *eval-time-2-packaged*   <span style="color: #f08080;">:ev-packaged-2</span> <span style="color: #deb887;">"documentation"</span> 'test-2)
+
+ (setf *compile-time-1-unbound*    <span style="color: #f08080;">:updated-compile-time-1-unbound</span>
+       *compile-time-1-bound*      <span style="color: #f08080;">:updated-compile-time-1-bound</span>
+       *compile-time-1-documented* <span style="color: #f08080;">:updated-compile-time-1-documented</span>
+       *compile-time-1-packaged*   <span style="color: #f08080;">:updated-compile-time-1-packaged</span>)
+ (setf *eval-time-1-unbound*       <span style="color: #f08080;">:updated-eval-time-1-unbound</span>
+       *eval-time-1-bound*         <span style="color: #f08080;">:updated-eval-time-1-bound</span>
+       *eval-time-1-documented*    <span style="color: #f08080;">:updated-eval-time-1-documented</span>
+       *eval-time-1-packaged*      <span style="color: #f08080;">:updated-eval-time-1-packaged</span>)
+ (setf *compile-time-2-unbound*    <span style="color: #f08080;">:updated-compile-time-2-unbound</span>
+       *compile-time-2-bound*      <span style="color: #f08080;">:updated-compile-time-2-bound</span>
+       *compile-time-2-documented* <span style="color: #f08080;">:updated-compile-time-2-documented</span>
+       *compile-time-2-packaged*   <span style="color: #f08080;">:updated-compile-time-2-packaged</span>)
+ (setf *eval-time-2-unbound*       <span style="color: #f08080;">:updated-eval-time-2-unbound</span>
+       *eval-time-2-bound*         <span style="color: #f08080;">:updated-eval-time-2-bound</span>
+       *eval-time-2-documented*    <span style="color: #f08080;">:updated-eval-time-2-documented</span>
+       *eval-time-2-packaged*      <span style="color: #f08080;">:updated-eval-time-2-packaged</span>)
+
+ (<span style="color: #00bfff; font-weight: bold;">let</span> ((saved-1 (<span style="color: #00bfff; font-weight: bold;">with-output-to-string</span> (saved-1)
+                  (pv-save saved-1 'test-1)))
+       (saved-2 (<span style="color: #00bfff; font-weight: bold;">with-output-to-string</span> (saved-2)
+                  (pv-save saved-2 'test-2))))
+
+   <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Delete the test package...</span>
+   (<span style="color: #00bfff; font-weight: bold;">let*</span> ((*package* (find-package <span style="color: #f08080;">:persistent-variables.test</span>)))
+     (delete-package <span style="color: #f08080;">:persistent-variables.test.workspace</span>)
+
+     <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Then load the saved data</span>
+     (<span style="color: #00bfff; font-weight: bold;">with-input-from-string</span> (s saved-1) (pv-load s 'test-1))
+     (<span style="color: #00bfff; font-weight: bold;">with-input-from-string</span> (s saved-2) (pv-load s 'test-2)))))
+
+(<span style="color: #f08080;">:execute</span>
+   (format t <span style="color: #deb887;">"~%ROUND TWO: ~a"</span> *package*)
+
+   <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Redeclare these guys, as if late-loaded at the REPL.</span>
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-1))
+     (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))   
+     (defpvar *eval-time-1-unbound*)
+     (defpvar *eval-time-1-bound*      <span style="color: #f08080;">:ev-bound-1</span>)
+     (defpvar *eval-time-1-documented*
+         <span style="color: #f08080;">:ev-documented-1</span> <span style="color: #deb887;">"documentation"</span>))
+   (defpvar *eval-time-1-packaged*
+       <span style="color: #f08080;">:ev-packaged-1</span> <span style="color: #deb887;">"documentation"</span> 'test-1)
+
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-2))
+     (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))
+     (defpvar *eval-time-2-unbound*)
+     (defpvar *eval-time-2-bound*      <span style="color: #f08080;">:ev-bound-2</span>)
+     (defpvar *eval-time-2-documented*
+         <span style="color: #f08080;">:ev-documented-2</span> <span style="color: #deb887;">"documentation"</span>))
+   (defpvar *eval-time-2-packaged* 
+       <span style="color: #f08080;">:ev-packaged-2</span> <span style="color: #deb887;">"documentation"</span> 'test-2)
+</pre>
+
+
+
+<pre class="src src-lisp"><span style="color: #5f9ea0; font-style: italic;">;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;</span>
+
+(format t <span style="color: #deb887;">"~%ROUND TWO first round of tests..."</span>)
+
+(expect (and (eq *compile-time-1-unbound*    
+                 <span style="color: #f08080;">:updated-compile-time-1-unbound</span>)
+             (eq *compile-time-1-bound*      
+                 <span style="color: #f08080;">:updated-compile-time-1-bound</span>)
+             (eq *compile-time-1-documented* 
+                 <span style="color: #f08080;">:updated-compile-time-1-documented</span>)
+             (eq *compile-time-1-packaged*   
+                 <span style="color: #f08080;">:updated-compile-time-1-packaged</span>)))
+
+(expect (and (eq *eval-time-1-unbound*       
+                 <span style="color: #f08080;">:updated-eval-time-1-unbound</span>)
+             (eq *eval-time-1-bound*         
+                 <span style="color: #f08080;">:updated-eval-time-1-bound</span>)
+             (eq *eval-time-1-documented*    
+                 <span style="color: #f08080;">:updated-eval-time-1-documented</span>)
+             (eq *eval-time-1-packaged*      
+                 <span style="color: #f08080;">:updated-eval-time-1-packaged</span>)))
+
+(expect (and (eq *compile-time-2-unbound*    
+                 <span style="color: #f08080;">:updated-compile-time-2-unbound</span>)
+             (eq *compile-time-2-bound*     
+                 <span style="color: #f08080;">:updated-compile-time-2-bound</span>)
+             (eq *compile-time-2-documented* 
+                 <span style="color: #f08080;">:updated-compile-time-2-documented</span>)
+             (eq *compile-time-2-packaged*  
+                 <span style="color: #f08080;">:updated-compile-time-2-packaged</span>)))
+
+(expect (and (eq *eval-time-2-unbound* 
+                 <span style="color: #f08080;">:updated-eval-time-2-unbound</span>)
+             (eq *eval-time-2-bound*  
+                 <span style="color: #f08080;">:updated-eval-time-2-bound</span>)
+             (eq *eval-time-2-documented*  
+                 <span style="color: #f08080;">:updated-eval-time-2-documented</span>)
+             (eq *eval-time-2-packaged*   
+                 <span style="color: #f08080;">:updated-eval-time-2-packaged</span>)))
+
+<span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Redeclare these guys (as if a second time, </span>
+<span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">explicitly with slime -- or as if deleting package and</span>
+<span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">reloading without reloading the data...</span>
+(makunbound '*eval-time-1-unbound*)
+(makunbound '*eval-time-1-bound*)
+(makunbound '*eval-time-1-documented*)
+(makunbound '*eval-time-1-packaged*)
+(<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-1))
+  (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))   
+  (defpvar *eval-time-1-unbound*)
+  (defpvar *eval-time-1-bound*      <span style="color: #f08080;">:ev-bound-1</span>)
+  (defpvar *eval-time-1-documented* <span style="color: #f08080;">:ev-documented-1</span> <span style="color: #deb887;">"documentation"</span>))
+(defpvar *eval-time-1-packaged*   <span style="color: #f08080;">:ev-packaged-1</span> <span style="color: #deb887;">"documentation"</span> 'test-1)
+
+</pre>
+
+
+
+<pre class="src src-lisp">(makunbound '*eval-time-2-unbound*)
+(makunbound '*eval-time-2-bound*)
+(makunbound '*eval-time-2-documented*)
+(makunbound '*eval-time-2-packaged*)
+(<span style="color: #00bfff; font-weight: bold;">let</span> ((*default-set* 'test-2))
+  (<span style="color: #00bfff; font-weight: bold;">declare</span> (special *default-set*))
+  (defpvar *eval-time-2-unbound*)
+  (defpvar *eval-time-2-bound*      <span style="color: #f08080;">:ev-bound-2</span>)
+  (defpvar *eval-time-2-documented* <span style="color: #f08080;">:ev-documented-2</span> <span style="color: #deb887;">"documentation"</span>))
+(defpvar *eval-time-2-packaged*   <span style="color: #f08080;">:ev-packaged-2</span> <span style="color: #deb887;">"documentation"</span> 'test-2)
+
+(format t <span style="color: #deb887;">"~%ROUND TWO second round of tests."</span>)
+(expect (and (not (boundp '*eval-time-1-unbound*))
+             (eq *eval-time-1-bound*         <span style="color: #f08080;">:ev-bound-1</span>)
+             (eq *eval-time-1-documented*    <span style="color: #f08080;">:ev-documented-1</span>)
+             (eq *eval-time-1-packaged*      <span style="color: #f08080;">:ev-packaged-1</span>)))
+
+(expect (and (not (boundp '*eval-time-2-unbound*))
+             (eq *eval-time-2-bound*         <span style="color: #f08080;">:ev-bound-2</span>)
+             (eq *eval-time-2-documented*    <span style="color: #f08080;">:ev-documented-2</span>)
+             (eq *eval-time-2-packaged*      <span style="color: #f08080;">:ev-packaged-2</span>)))))
+
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-4-7" class="outline-3">
+<h3 id="sec-4-7"><span class="section-number-3">4.7</span> Test p-vars ignores unbound variables</h3>
+<div class="outline-text-3" id="text-4-7">
+
+
+<p>
+This test ensures that saving unbound variables does
+nothing.  The variable is just not saved.
+</p>
+
+
+
+<pre class="src src-lisp">(defptest test-p-vars-ignores-unbound-variables ()
+  (<span style="color: #f08080;">:execute</span>
+   (defpvar *unbound-variable*)
+
+   <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Unbound variables don't case saving errors.</span>
+   (<span style="color: #00bfff; font-weight: bold;">let</span> ((saved (<span style="color: #00bfff; font-weight: bold;">with-output-to-string</span> (s) (pv-save s))))
+
+     (setf *unbound-variable* <span style="color: #f08080;">:a-value</span>)
+
+     <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">But neither do they cause bound variables to unbind </span>
+     <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">upon loading.</span>
+     (<span style="color: #00bfff; font-weight: bold;">with-input-from-string</span> (s saved) (pv-load s))
+     (expect (eq *unbound-variable* <span style="color: #f08080;">:a-value</span>)))))
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-4-8" class="outline-3">
+<h3 id="sec-4-8"><span class="section-number-3">4.8</span> Test p-vars errors on unprintable variables</h3>
+<div class="outline-text-3" id="text-4-8">
+
+
+<p>
+This test ensures that we get a print-not-readable error
+if we attempt to save a value that cannot be read back.
+</p>
+
+
+
+<pre class="src src-lisp">(defptest test-p-vars-errors-on-unprintable-variables ()
+  (<span style="color: #f08080;">:execute</span>
+   (defpvar *unprintable-variable* #'identity)
+   (expect (eq 'error (<span style="color: #00bfff; font-weight: bold;">handler-case</span> (<span style="color: #00bfff; font-weight: bold;">with-output-to-string</span> (s) (pv-save s))
+                        (print-not-readable () 'error))))))
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-4-9" class="outline-3">
+<h3 id="sec-4-9"><span class="section-number-3">4.9</span> <span class="todo TODO">TODO</span> Test p-vars ignores deleted variables</h3>
+<div class="outline-text-3" id="text-4-9">
+
+
+
+
+
+<pre class="src src-lisp">(defptest test-p-vars-ignores-deleted-variables ()
+  (<span style="color: #f08080;">:execute</span>
+   (<span style="color: #00bfff; font-weight: bold;">when</span> (find-package <span style="color: #f08080;">:persistent-variables.test.temporary</span>)
+     (delete-package (find-package <span style="color: #f08080;">:persistent-variables.test.temporary</span>)))
+   (<span style="color: #00bfff; font-weight: bold;">let*</span> ((var (<span style="color: #00bfff; font-weight: bold;">let</span> ((*package*
+                      (make-package
+                       <span style="color: #f08080;">:persistent-variables.test.temporary</span>
+                       <span style="color: #f08080;">:use</span> (list (find-package <span style="color: #f08080;">:persistent-variables</span>)))))
+                 (<span style="color: #00bfff; font-weight: bold;">prog1</span> (eval 
+                         (read-from-string
+                          <span style="color: #deb887;">"(defpvar *non-existant-variable* \"a-value\")"</span>))
+                   (delete-package *package*))))
+          (saved (<span style="color: #00bfff; font-weight: bold;">with-output-to-string</span> (s) (pv-save s))))
+     (expect (string-equal (symbol-value var) <span style="color: #deb887;">"a-value"</span>))
+     (setf (symbol-value var) <span style="color: #deb887;">"a-different-value"</span>)
+     (expect (string-equal (symbol-value var) <span style="color: #deb887;">"a-different-value"</span>))
+     (<span style="color: #00bfff; font-weight: bold;">with-input-from-string</span> (s saved) (pv-load s))
+
+     <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">However, the deleted variables are no longer saved.</span>
+     <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">as evidence by it's failure to lead.</span>
+     (expect (string-equal (symbol-value var) <span style="color: #deb887;">"a-different-value"</span>))
+
+   (<span style="color: #00bfff; font-weight: bold;">let*</span> ((var (<span style="color: #00bfff; font-weight: bold;">let</span> ((*package*
+                      (make-package
+                       <span style="color: #f08080;">:persistent-variables.test.temporary</span>
+                       <span style="color: #f08080;">:use</span> (list (find-package <span style="color: #f08080;">:persistent-variables</span>)))))
+                 (eval
+                  (read-from-string
+                   <span style="color: #deb887;">"(defpvar *non-existant-variable* \"a-third-value\")"</span>)))))
+     (expect (string-equal (symbol-value var) <span style="color: #deb887;">"a-third-value"</span>))
+     (<span style="color: #00bfff; font-weight: bold;">with-input-from-string</span> (s saved) (pv-load s))
+     <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Still no change, because the variable was never saved.</span>
+     (expect (string-equal (symbol-value var) <span style="color: #deb887;">"a-third-value"</span>))
+     (delete-package *package*)))))
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-4-10" class="outline-3">
+<h3 id="sec-4-10"><span class="section-number-3">4.10</span> Test p-vars provides loading restarts</h3>
+<div class="outline-text-3" id="text-4-10">
+
+
+<p>
+Save a non readable object (a function) and then load it. It should
+give us two restarts (on every lisp implementation).
+</p>
+<p>
+But the is SBCL because it depends on the non-standard
+sb-ext:print-unreadably restart. 
+</p>
+
+
+
+<pre class="src src-lisp">#+sbcl 
+(defptest test-p-vars-provides-loading-restarts ()
+  (<span style="color: #f08080;">:compile</span>
+   (defpvar *bad-var-1* #'identity)
+   (defpvar *bad-var-2* #'identity)
+   (<span style="color: #00bfff; font-weight: bold;">defvar</span> <span style="color: #4eee94;">*storage*</span>
+     (<span style="color: #00bfff; font-weight: bold;">handler-bind</span> ((print-not-readable
+                     #'(<span style="color: #00bfff; font-weight: bold;">lambda</span> (e) (<span style="color: #00bfff; font-weight: bold;">declare</span> (ignore e)) 
+                          (invoke-restart
+                           'sb-ext:print-unreadably))))
+       (<span style="color: #00bfff; font-weight: bold;">with-output-to-string</span> (s) (pv-save s)))))
+  (<span style="color: #f08080;">:execute</span>
+   (makunbound '*bad-var-1*)
+   (makunbound '*bad-var-2*)
+   (<span style="color: #00bfff; font-weight: bold;">handler-bind</span> ((unloadable-variable
+                   #'(<span style="color: #00bfff; font-weight: bold;">lambda</span> (e)
+                       (<span style="color: #00bfff; font-weight: bold;">if</span> (eq (name e) '*bad-var-1*)
+                           (invoke-restart
+                            'use-value <span style="color: #f08080;">:a-new-value</span>)
+                           (invoke-restart
+                            'skip-variable)))))
+     (<span style="color: #00bfff; font-weight: bold;">with-input-from-string</span> (s *storage*) (pv-load s))
+     (expect (eq *bad-var-1* <span style="color: #f08080;">:a-new-value</span>))
+     (expect (not (boundp '*bad-var-2*))))))
+</pre>
+
+
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-5" class="outline-2">
+<h2 id="sec-5"><span class="section-number-2">5</span> License</h2>
+<div class="outline-text-2" id="text-5">
+
+
+<p>
+Persister is distributed under the <a href="http://opensource.org/licenses/lgpl-2.1.php">LGPL2</a> License. 
+</p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes: </h2>
+<div id="text-footnotes">
+<p class="footnote"><sup><a class="footnum" name="fn-.1" href="#fnr-.1">1</a></sup> you might need to (require 'asdf) before running this example
+</p>
+
+
+<p class="footnote"><sup><a class="footnum" name="fn-.2" href="#fnr-.2">2</a></sup> For missing variables, we cache the value in case the variable shows up in the future. For unreadable data, we present skip-variable and use-value as restarts.
+</p>
+
+
+</div>
+</div>
+
+</div>
+</div>
+</div>
+
+<div id="postamble">
+<p class="date">Date: 2013-02-03T17:40-0700</p>
+<p class="author">Author: Warren Wilkinson</p>
+<p class="creator"><a href="http://orgmode.org">Org</a> version 7.9.2 with <a href="http://www.gnu.org/software/emacs/">Emacs</a> version 24</p>
+<a href="http://validator.w3.org/check?uri=referer">Validate XHTML 1.0</a>
+
+</div>
+</body>
+</html>
