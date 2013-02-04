@@ -1,0 +1,1063 @@
+#+TITLE: persistent-variables
+#+author: Warren Wilkinson
+#+email: warrenwilkinson@gmail.com
+#+LATEX_CLASS: tufte
+
+# Repository: https://github.com/WarrenWilkinson/persistent-variables
+
+
+* Overview 
+
+Persistent variables can be serialize to and from streams.  
+
+They come with niceties, like restarts for failed serialization, late binding (loaded values are cached until the variable
+is defined), and a test suite.
+
+#+begin_src lisp
+  (defpvar *my-account-password*) ;; Don't give it a value in the source file!
+
+  ;; At the Repl: 
+  (setf *my-account-password* "the-password")
+  (with-open-file (s "/path/to/somewhere/else")
+    (p-save s))
+
+  ;; Later, at startup:
+  (with-open-file (s "/path/to/somewhere/else")
+    (p-load s))
+#+end_src
+
+** Features
+
+   * Group variables into 'sets' that are saved and loaded independently.
+   * Late binding of variables: load you the saved values before loading your code.
+   * Ignores deleted/missing symbols and unbound symbols.  
+   * Errors for serialization and deserialization problems, with nice restarts.
+   * Low line of code count (around 100 lines of code)
+
+* Installation
+** Quick Lisp
+
+Install [[http://www.quicklisp.org/beta/][Quick Lisp]] and then run:
+
+#+BEGIN_SRC lisp
+(ql:quickload 'persistent-variables)
+#+END_SRC
+
+If you have problems, see the [[#support][support]] section, and you may want to [[#runtests][run the tests]].
+
+** Gentoo
+
+As root, 
+
+#+BEGIN_SRC sh
+emerge persistent-variables
+#+END_SRC
+
+Once the emerge is finished, the package can be loaded using ASDF:
+#+BEGIN_SRC lisp
+(asdf:operate 'asdf:load-op :persistent-variables)
+#+END_SRC
+
+If you have problems, see the [[#support][support]] section, otherwise you may want to [[#runtests][run the tests]].
+
+** Ubunto
+
+#+BEGIN_SRC sh
+sudo apt-get install persistent-variables
+#+END_SRC
+
+Once the installation is finished, the package is loadable using ASDF:
+
+#+BEGIN_SRC lisp
+(asdf:operate 'asdf:load-op :persistent-variables)
+#+END_SRC
+
+If you have problems, see the [[#support][support]] section, otherwise you may want to [[#runtests][run the tests]].
+
+** Manual Installation
+
+In summary: Untar the [[https://github.com/WarrenWilkinson/persistent-variables/archive/master.tar.gz][.tar]] package and then symlink the .asd files into a place where ASDF can find them. 
+
+  1. Untar the files where you want them to be.  On windows download the [[https://github.com/WarrenWilkinson/persistent-variables/archive/master.zip][.zip]] and unzip it instead, it's the same files.
+  2. ASDF could be looking anywhere -- it depends on your setup.  Run this in your lisp repl to get a clue
+     as to where ASDF is seeking libraries[fn:: you might need to (require 'asdf) before running this example]:
+
+     #+BEGIN_SRC lisp
+        (mapcan #'funcall asdf:*default-source-registries*)
+     #+END_SRC
+
+  3. Symlink the .asd files to the source directory. If you use windows, [[http://bc.tech.coop/blog/041113.html][these instructions on symlink alternatives apply to you]].
+
+Once the files are in place, the package can be loaded with ASDF by:
+#+BEGIN_SRC lisp
+(asdf:operate 'asdf:load-op :persistent-variables)
+#+END_SRC
+
+If you have problems, see the [[#support][support]] section.  If you don't have problems you may want to [[#runtests][run the tests]] anyway, because you can.
+
+** Running the Tests
+   :PROPERTIES:
+   :CUSTOM-ID:  runtests
+   :END:
+
+Once the system is loaded, it can be tested with asdf. 
+
+#+BEGIN_SRC lisp
+(asdf:operate 'asdf:test-op :persistent-variables)
+#+END_SRC
+
+This should display something like the following. There should
+be *zero failures*, if you have failures see the [[#support][support]] section
+of this document.
+
+#+BEGIN_SRC sh
+   RUNNING PERSISTENT-VARIABLE TESTS...
+   PERSISTENT-VARIABLE TEST RESULTS: 
+        Tests: 8
+      Success: 8
+     Failures: 0
+#+END_SRC
+
+** Getting Support
+   :PROPERTIES:
+   :CUSTOM-ID:  support
+   :END:
+
+You can find support on this libraries [[http://warrenwilkinson.ca/persistent-variables][website]] and/or [[https://github.com/WarrenWilkinson/persistent-variables][github]] repository. Or you can email [[mailto:warrenwilkinson@gmail.com][Warren Wilkinson]].
+
+* Implementation
+** persist - tracking variables to persist.
+
+Persisted variables are tracked as a lists. There can be multiple lists, so
+the lists themselves are stored in a hash table.
+
+#+name: persist
+#+begin_src lisp
+    (defvar *persisted* (make-hash-table))
+    (defvar *default-set* :default)
+    
+    (defun persist (name &optional (set *default-set*))
+      "Add a variable to persistence serialization."
+      (push name (gethash set *persisted* nil)))
+
+    (defun unpersist (name &optional (set *default-set*))
+      "Remove a variable from persistence serialization."
+      (setf (gethash set *persisted*)
+            (remove name (gethash set *persisted*))))
+#+end_src 
+
+** pv-save - saving variables to a stream
+
+Variables are written as ("package" "name" "readable value"). This avoids using symbols or packages, which may not
+exist when we come to load the data again.
+
+To save, p-save iterates all the variables in the set.  If the variable has a package (e.g. it's not in a package
+that was deleted) and has a value, it gets serialized.
+
+#+name: pv-save
+#+begin_src lisp
+  (flet ((serialize (var)
+           (list (package-name (symbol-package var))
+                 (symbol-name var)
+                 (let ((*package* (find-package :cl-user))
+                       (*print-readably* t))
+                   (prin1-to-string (symbol-value var))))))
+    (defun pv-save (stream &optional (set *default-set*))
+      "Save all defpvar values to stream."
+      (dolist (var (remove-duplicates (gethash set *persisted*)))
+        (when (and (symbol-package var) (boundp var))
+          (prin1 (serialize var) stream)
+          (terpri stream)))))
+#+end_src
+
+** pv-load - loading variables from a stream
+
+Loading variables is more complicated: things can go wrong.
+ 
+  * What if the variable no longer exists?[fn::For missing variables, we cache the value in case the variable shows up in the future. For unreadable data, we present skip-variable and use-value as restarts.]
+  * What if the data is not readable? See next.
+
+#+name: pv-read
+#+begin_src lisp
+  (define-condition unloadable-variable (error)
+    ((name :initarg :name :reader name)
+     (text :initarg :text :reader text)
+     (expression :initarg :expression :reader expression)))
+  
+  (defmethod print-object ((c unloadable-variable) stream)
+    (format stream "Unloadable variable ~s: ~a in ~s"
+            (let ((*package* (find-package :cl-user)))
+              (prin1-to-string (name c)))
+            (text c)
+            (expression c)))
+  
+  (defun pv-read (symbol value)
+    "Attempt to read a saved value."
+    (restart-case
+        (handler-case (values 
+                       (let ((*package* (find-package :cl-user)))
+                         (read-from-string value))
+                       t)
+          (error (e) (let* ((msg (princ-to-string e))
+                            (msg (subseq msg 0 (position #\Newline msg))))
+                       (error 'unloadable-variable 
+                              :name symbol :text msg :expression value))))
+      (skip-variable ()
+        :report "Skip loading this variable."
+        (values nil nil))
+      (use-value (value) 
+        :report "Specify a value to use."
+        :interactive (lambda ()
+                       (format t "~&Value for ~s: " symbol)
+                       (list (eval (read))))
+        (values value t))))
+#+end_src
+
+p-load processes the stream, reading in saved variables. 
+
+For each variable, p-lead attempts to 1) find the variable and 2) set it. Variables
+that can't be found (and thus can't be set) are stored as a list placed into the hash table
+\*loaded\*.
+
+#+name: pv-load
+#+begin_src lisp
+  (defvar *loaded* (make-hash-table)
+    "Store loaded values that are missing their corresponding variables.")
+  
+  (flet ((pv-set (package symbol value)
+           "Attempt to set package:symbol to value. Return t if done right."
+           (let* ((p (find-package package))
+                  (s (and p (find-symbol symbol p))))
+             (multiple-value-bind (val found-p)
+                 (and s (pv-read s value))
+               (when found-p (set s val) t)))))
+    (defun pv-load (stream &optional (set *default-set*))
+      "Load variable bindings from stream and set persistent-variables.."
+      (loop for (package symbol value) = (read stream nil '(:eof :eof :eof))
+         until (eq package :eof)
+         for did-set? = (pv-set package symbol value)
+         unless did-set?
+         collect (list package symbol value) into bindings
+         finally (setf (gethash (symbol-name set) *loaded*) bindings))))
+#+end_src
+
+** defpvar -- easily define and register persistent variables
+
+The macro defpvar defines a variable, registers it for persistence, and loads any
+cached value it may already have.
+
+It's important to notice that defpvar also *forgets* the cached value.  This is so
+that defpvars first take on any cached loaded value, and only upon re-evalution take the 
+value present in the source code. In summary:
+
+   1) On the first evaluation, defpvar's take the *loaded* value, regardless of what is specified. 
+   2) On subsequent evaluations, defpvar's take their *written* default.
+
+This applies only to late binding -- when you've already loaded the saved variables before loading 
+your code.  If you load code first, none of this matters: the variables are set to the loaded data.
+
+#+name: defpvar
+#+begin_src lisp
+  (defmacro defpvar (name 
+                     &optional
+                       (val ''unbind)
+                       (doc nil doc-supplied-p)
+                       (set '*default-set*))
+    "Define persistent variable, it'll take it's cached value if available."
+    (let ((pset (gensym))  (value (gensym))  (found-p (gensym)))
+      `(let ((,pset ,set))
+         (defvar ,name
+           (multiple-value-bind (,value ,found-p)
+               (cached-string *package* ',name ,pset)
+             (if ,found-p (pv-read ',name ,value) ,val))
+           ,@(if doc-supplied-p (list doc)))
+         
+         (when (eq (symbol-value ',name) 'unbind) (makunbound ',name))
+         (persist ',name ,pset)
+         (cached-string-forget ',name ,pset)
+         ',name)))
+#+end_src 
+
+The extra functions defpvar refers to, /cached-value-forget/ and /cached-value/, are defined as:
+
+#+name: pv-load-extra
+#+begin_src lisp
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (flet ((load-eq (a b)
+             (and (string-equal (first a) (first b))
+                  (string-equal (second a) (second b)))))
+      (defun cached-string-forget (symbol
+                                   &optional (set *default-set*))
+        (setf (gethash (symbol-name set) *loaded*)
+              (remove (list (package-name (symbol-package symbol))
+                            (symbol-name symbol))
+                      (gethash (symbol-name set) *loaded*)
+                      :test #'load-eq)))
+      
+      (defun cached-string (package name
+                            &optional (set *default-set*))
+        (let ((bind (find (list (package-name (find-package package))
+                                (symbol-name name))
+                          (gethash (symbol-name set) *loaded*)
+                          :test #'load-eq)))
+          (values (third bind) (not (null bind)))))))
+#+end_src
+
+* Tests
+** Test Framework
+
+The test framework deals with the running of tests and printing of results.
+The tests are discussed in their own subheadings.
+
+#+NAME: result-runner-and-printer
+#+BEGIN_SRC lisp
+  (defstruct results
+    (tests 0)
+    (failures nil))
+  (defun results-failure-count (results)
+    (length (results-failures results)))
+  (defun results-successes (results)
+    (- (results-tests results)
+       (results-failure-count results)))
+  
+  (defun runtest (fun results)
+    (let* ((success t)
+           (output (with-output-to-string (*standard-output*)
+                     (unwind-protect 
+                          (setf success (handler-case (funcall fun)
+                                          (error (e) (princ e) nil)))))))
+      (make-results
+       :tests (1+ (results-tests results))
+       :failures (if success
+                     (results-failures results)
+                     (acons fun output (results-failures results))))))
+  
+  (defun present-failures (results)
+    (format t "~%PERSISTENT-VARIABLES FAILURES:~%")
+    (loop for (fn . problems) in (results-failures results)
+          do (format t "~%~a~a~%" fn problems)))
+  (defun present-results (results)
+    (format t "~%PERSISTENT-VARIABLES TEST RESULTS:")
+    (format t "~%     Tests: ~a~%   Success: ~a~%  Failures: ~a" 
+            (results-tests results)
+            (results-successes results)
+            (results-failure-count results))
+    (when (results-failures results)
+      (present-failures results)))
+    
+  (defun run-tests ()
+    (format t "~%RUNNING PERSISTENT-VARIABLES TESTS...")
+    (present-results 
+     (reduce #'(lambda (results function) (runtest function results))
+             *tests* :initial-value (make-results))))
+#+END_SRC
+
+Tests are just functions, pushed onto a list.
+
+#+NAME: test-maker
+#+BEGIN_SRC lisp
+  (defvar *tests* nil)
+  (defvar *success*)
+  (defmacro deftest (name () &rest body)
+    `(progn (defun ,name () ,@body) (pushnew ',name *tests*)))
+  
+  (defmacro expect (code)
+    `(or ,code
+         (progn
+           (setf *success* nil)
+           (format t ,(format nil "~%   unexpected false in:~%    ~s" code)))))
+#+END_SRC
+
+** Test Context
+   
+Tests work in their own persistence package. They test compile-time, load-time and execute-time semantics, so they use 
+and compile a temporary file to do that. 
+
+#+name: defptest
+#+begin_src lisp
+     
+   (defvar *temp-file* #p"/tmp/persister-test.lisp")
+   (defvar *temp-fasl* #p"/tmp/persister-test.fasl")
+   
+   (defmacro defptest (name () &rest body)
+     (let ((compile (assoc :compile body)))
+       `(deftest ,name () 
+          (remhash 'test persistent-variables::*persisted*)
+          (remhash 'test-1 persistent-variables::*persisted*)
+          (remhash 'test-2 persistent-variables::*persisted*)
+          (when (find-package :persistent-variables.test.workspace) 
+            (delete-package :persistent-variables.test.workspace))
+          (let ((*default-set* 'test)
+                (persistent-variables::*loaded* (make-hash-table :test #'equalp))
+                (*success* t))
+            (declare (special *default-set* *success*
+                              persistent-variables::*loaded*))
+            (unwind-protect 
+                 (progn
+                   ;; If there is compile time stuff, compile it.
+                   (with-open-file (s *temp-file* :direction :output :if-exists 
+                                      :supersede :if-does-not-exist :create)
+                     (write-sequence
+                      ,(prin1-to-string
+                        `(defpackage :persistent-variables.test.workspace
+                           (:use :cl :persistent-variables
+                                 :persistent-variables.test))) s)
+                     (write-sequence
+                      ,(prin1-to-string
+                        `(in-package :persistent-variables.test.workspace)) s)
+                     ,@(mapcar #'(lambda (code) `(write-sequence
+                                             ,(prin1-to-string code) s))
+                               (cdr compile)))
+                   (compile-file *temp-file* :output-file *temp-fasl*)
+                   
+                   ;; Now load it and eval/run the execute statements
+                   ,@(mapcan
+                      #'(lambda (execute)
+                          `((eval
+                             '(progn
+                               (load *temp-fasl*)
+                               (let ((*standard-output* *standard-output*)
+                                     (*package*
+                                      (find-package
+                                       :persistent-variables.test.workspace)))
+                                 (eval (read-from-string
+                                        ,(prin1-to-string
+                                          `(progn ,@(cdr execute))))))))))
+                      (remove :execute body :key #'car :test-not #'eq))
+                   *success*)
+              (delete-package :persistent-variables.test.workspace))))))
+  
+#+end_src
+
+** Test p-vars are definable
+
+This test ensures pvars that are defined at compile time, show up, with correct values, when the file is loaded.
+
+Then it ensures pvars that are defined during execution time have their correct values.
+
+#+name: test-p-vars-are-definable
+#+begin_src lisp
+  (defptest p-vars-are-definable ()
+    (:compile
+     (defpvar *compile-time-unbound*)
+     (defpvar *compile-time-bound* :bound)
+     (defpvar *compile-time-documented* :documented "documentation"))
+    (:execute
+     ;; Still around after loading?
+     (expect (handler-case *compile-time-unbound*
+                (unbound-variable () t)))
+     (expect (handler-case (eq *compile-time-bound* :bound)
+                (error () nil)))
+     (expect (handler-case (eq *compile-time-documented* :documented)
+                (error () nil)))
+     (expect (handler-case (null (boundp '*compile-time-unbound*))
+               (error () nil)))
+     (expect (handler-case (not (null (boundp '*compile-time-bound*)))
+               (error () nil)))
+     (expect (handler-case (not (null (boundp '*compile-time-documented*)))
+               (error () nil)))
+    
+     ;; How about some new variables? 
+     (defpvar *eval-time-unbound*)
+     (defpvar *eval-time-bound* :ev-bound)
+     (defpvar *eval-time-documented* :ev-documented "documentation")
+     
+     (expect (handler-case *eval-time-unbound*
+               (unbound-variable () t)))
+     (expect (handler-case (eq *eval-time-bound* :ev-bound)
+               (error () nil)))
+     (expect (handler-case (eq *eval-time-documented* :ev-documented)
+               (error () nil)))
+     (expect (handler-case (null (boundp '*eval-time-unbound*))
+               (error () nil)))
+     (expect (handler-case (not (null (boundp '*eval-time-bound*)))
+               (error () nil)))
+     (expect (handler-case (not (null (boundp '*eval-time-documented*)))
+               (error () nil)))))
+#+end_src
+
+** Test p-vars can be saved and loaded
+
+Test pv-load and pv-save work in a simple case.
+
+In this test we use 2 sets of variables.  We save each set, setf them all set to nonsense and
+then load the values. 
+
+We then test to ensure they've successfully loaded their old values.
+
+Also note that unbound variables do not save/restore their unbound state. So they keep their new value!
+
+#+name: test-p-vars-can-be-saved-and-loaded-1
+#+begin_src lisp
+   (defptest test-p-vars-can-be-saved-and-loaded ()
+     (:compile
+      (let ((*default-set* 'test-1))
+        (declare (special *default-set*))
+        (defpvar *compile-time-1-unbound*)
+        (defpvar *compile-time-1-bound* :bound-1)
+        (defpvar *compile-time-1-documented* :documented-1 "documentation"))
+      (defpvar *compile-time-1-packaged* :packaged-1 "documentation" 'test-1)
+      
+      (let ((*default-set* 'test-2))
+        (declare (special *default-set*))
+        (defpvar *compile-time-2-unbound*)
+        (defpvar *compile-time-2-bound* :bound-2)
+        (defpvar *compile-time-2-documented* :documented-2 "documentation"))
+      (defpvar *compile-time-2-packaged* :packaged-2 "documentation" 'test-2))
+     (:execute
+   
+      (let ((*default-set* 'test-1))
+        (declare (special *default-set*))   
+        (defpvar *eval-time-1-unbound*)
+        (defpvar *eval-time-1-bound*      :ev-bound-1)
+        (defpvar *eval-time-1-documented* :ev-documented-1 "documentation"))
+      (defpvar *eval-time-1-packaged*   :ev-packaged-1 "documentation" 'test-1)
+   
+      (let ((*default-set* 'test-2))
+        (declare (special *default-set*))
+        (defpvar *eval-time-2-unbound*)
+        (defpvar *eval-time-2-bound*      :ev-bound-2)
+        (defpvar *eval-time-2-documented* :ev-documented-2 "documentation"))
+      (defpvar *eval-time-2-packaged*   :ev-packaged-2 "documentation" 'test-2)
+      
+      (let ((saved-1 (with-output-to-string (saved-1)
+                       (pv-save saved-1 'test-1)))
+            (saved-2 (with-output-to-string (saved-2)
+                       (pv-save saved-2 'test-2))))
+        (setf *compile-time-1-unbound* :a-new-value
+              *compile-time-1-bound* :a-new-value
+              *compile-time-1-documented* :a-new-value
+              *compile-time-1-packaged* :a-new-value)
+        (setf *eval-time-1-unbound* :a-new-value
+              *eval-time-1-bound* :a-new-value
+              *eval-time-1-documented* :a-new-value
+              *eval-time-1-packaged* :a-new-value)
+        (setf *compile-time-2-unbound* :a-new-value
+              *compile-time-2-bound* :a-new-value
+              *compile-time-2-documented* :a-new-value
+              *compile-time-2-packaged* :a-new-value)
+        (setf *eval-time-2-unbound* :a-new-value
+              *eval-time-2-bound* :a-new-value
+              *eval-time-2-documented* :a-new-value
+              *eval-time-2-packaged* :a-new-value)
+#+end_src
+
+#+name: test-p-vars-can-be-saved-and-loaded-2
+#+begin_src lisp
+
+        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        (expect (and (eq *compile-time-1-unbound* :a-new-value)
+                     (eq *compile-time-1-bound* :a-new-value)
+                     (eq *compile-time-1-documented* :a-new-value)
+                     (eq *compile-time-1-packaged* :a-new-value)))
+        (expect (and (eq *eval-time-1-unbound* :a-new-value)
+                     (eq *eval-time-1-bound* :a-new-value)
+                     (eq *eval-time-1-documented* :a-new-value)
+                     (eq *eval-time-1-packaged* :a-new-value)))
+        (with-input-from-string (s saved-1) (pv-load s 'test-1))
+        (expect (and (eq *compile-time-1-unbound* :a-new-value)
+                     (eq *compile-time-1-bound* :bound-1)
+                     (eq *compile-time-1-documented* :documented-1)
+                     (eq *compile-time-1-packaged* :packaged-1)))
+        (expect (and (eq *eval-time-1-unbound* :a-new-value)
+                     (eq *eval-time-1-bound* :ev-bound-1)
+                     (eq *eval-time-1-documented* :ev-documented-1)
+                     (eq *eval-time-1-packaged* :ev-packaged-1)))
+        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        (expect (and (eq *compile-time-2-unbound* :a-new-value)
+                     (eq *compile-time-2-bound* :a-new-value)
+                     (eq *compile-time-2-documented* :a-new-value)
+                     (eq *compile-time-2-packaged* :a-new-value)))
+        (expect (and (eq *eval-time-2-unbound* :a-new-value)
+                     (eq *eval-time-2-bound* :a-new-value)
+                     (eq *eval-time-2-documented* :a-new-value)
+                     (eq *eval-time-2-packaged* :a-new-value)))
+        (with-input-from-string (s saved-2) (pv-load s 'test-2))
+        (expect (and (eq *compile-time-2-unbound* :a-new-value)
+                     (eq *compile-time-2-bound* :bound-2)
+                     (eq *compile-time-2-documented* :documented-2)
+                     (eq *compile-time-2-packaged* :packaged-2)))
+        (expect (and (eq *eval-time-2-unbound* :a-new-value)
+                     (eq *eval-time-2-bound* :ev-bound-2)
+                     (eq *eval-time-2-documented* :ev-documented-2)
+                     (eq *eval-time-2-packaged* :ev-packaged-2))))))
+   
+#+end_src
+
+** Test p-vars can load things from different packages
+
+This test ensures that if our variable, my-package:my-variable, saves
+other-package:other-symbol, it doesn't come back as my-package:other-symbol.
+
+We test that by setting our variable to (intern "A-SYMBOL" :cl-user), and ensuring
+that we get that value back.
+
+#+name: test-p-vars-can-load-from-different-packages
+#+begin_src lisp
+  (defptest test-p-vars-can-load-from-different-packages ()
+    (:compile
+     (defpvar *compile-time-1-bound* (intern "A-SYMBOL" :cl-user)))
+    (:execute
+     (let ((saved-1 (with-output-to-string (saved-1) (pv-save saved-1))))
+       (setf *compile-time-1-bound* :a-new-value)
+       (expect (eq *compile-time-1-bound* :a-new-value))
+       (with-input-from-string (s saved-1) (pv-load s))
+       (expect (eq *compile-time-1-bound* (intern "A-SYMBOL" :cl-user))))))
+#+end_src 
+
+** Test p-vars can be late bound
+
+This test ensures that late binding works. 
+
+In this test we save 2 sets of variable and we update them all and save them.
+
+Then we delete the package -- and load the data. 
+
+When we execute again (and the package is reloaded), we test to ensure that 
+all the variables have their loaded values.
+
+Finally, we makunbound some of the symbols and run a copy of their definition
+code again (simulating a second evaluation of them, perhaps via slime).  This second time around,
+they should *not* use the loaded values, but instead the in-code values.
+
+#+name: test-p-vars-can-be-late-bound-1
+#+begin_src lisp
+  (defptest test-p-vars-can-be-late-bound ()
+    (:compile
+     (let ((*default-set* 'test-1))
+       (declare (special *default-set*))
+       (defpvar *compile-time-1-unbound*)
+       (defpvar *compile-time-1-bound* :bound-1)
+       (defpvar *compile-time-1-documented* :documented-1 "documentation"))
+     (defpvar *compile-time-1-packaged* :packaged-1 "documentation" 'test-1)
+  
+     (let ((*default-set* 'test-2))
+       (declare (special *default-set*))
+       (defpvar *compile-time-2-unbound*)
+       (defpvar *compile-time-2-bound* :bound-2)
+       (defpvar *compile-time-2-documented* :documented-2 "documentation"))
+     (defpvar *compile-time-2-packaged* :packaged-2 "documentation" 'test-2))
+  
+    (:execute
+     (format t "~%ROUND ONE")
+     (let ((*default-set* 'test-1))
+       (declare (special *default-set*))   
+       (defpvar *eval-time-1-unbound*)
+       (defpvar *eval-time-1-bound*      :ev-bound-1)
+       (defpvar *eval-time-1-documented* :ev-documented-1 "documentation"))
+     (defpvar *eval-time-1-packaged*   :ev-packaged-1 "documentation" 'test-1)
+
+#+end_src
+
+#+name: test-p-vars-can-be-late-bound-2
+#+begin_src lisp
+   
+      (let ((*default-set* 'test-2))
+        (declare (special *default-set*))
+        (defpvar *eval-time-2-unbound*)
+        (defpvar *eval-time-2-bound*      :ev-bound-2)
+        (defpvar *eval-time-2-documented* :ev-documented-2 "documentation"))
+      (defpvar *eval-time-2-packaged*   :ev-packaged-2 "documentation" 'test-2)
+   
+      (setf *compile-time-1-unbound*    :updated-compile-time-1-unbound
+            *compile-time-1-bound*      :updated-compile-time-1-bound
+            *compile-time-1-documented* :updated-compile-time-1-documented
+            *compile-time-1-packaged*   :updated-compile-time-1-packaged)
+      (setf *eval-time-1-unbound*       :updated-eval-time-1-unbound
+            *eval-time-1-bound*         :updated-eval-time-1-bound
+            *eval-time-1-documented*    :updated-eval-time-1-documented
+            *eval-time-1-packaged*      :updated-eval-time-1-packaged)
+      (setf *compile-time-2-unbound*    :updated-compile-time-2-unbound
+            *compile-time-2-bound*      :updated-compile-time-2-bound
+            *compile-time-2-documented* :updated-compile-time-2-documented
+            *compile-time-2-packaged*   :updated-compile-time-2-packaged)
+      (setf *eval-time-2-unbound*       :updated-eval-time-2-unbound
+            *eval-time-2-bound*         :updated-eval-time-2-bound
+            *eval-time-2-documented*    :updated-eval-time-2-documented
+            *eval-time-2-packaged*      :updated-eval-time-2-packaged)
+      
+      (let ((saved-1 (with-output-to-string (saved-1)
+                       (pv-save saved-1 'test-1)))
+            (saved-2 (with-output-to-string (saved-2)
+                       (pv-save saved-2 'test-2))))
+   
+        ;; Delete the test package...
+        (let* ((*package* (find-package :persistent-variables.test)))
+          (delete-package :persistent-variables.test.workspace)
+        
+          ;; Then load the saved data
+          (with-input-from-string (s saved-1) (pv-load s 'test-1))
+          (with-input-from-string (s saved-2) (pv-load s 'test-2)))))
+   
+     (:execute
+        (format t "~%ROUND TWO: ~a" *package*)
+   
+        ;; Redeclare these guys, as if late-loaded at the REPL.
+        (let ((*default-set* 'test-1))
+          (declare (special *default-set*))   
+          (defpvar *eval-time-1-unbound*)
+          (defpvar *eval-time-1-bound*      :ev-bound-1)
+          (defpvar *eval-time-1-documented*
+              :ev-documented-1 "documentation"))
+        (defpvar *eval-time-1-packaged*
+            :ev-packaged-1 "documentation" 'test-1)
+   
+        (let ((*default-set* 'test-2))
+          (declare (special *default-set*))
+          (defpvar *eval-time-2-unbound*)
+          (defpvar *eval-time-2-bound*      :ev-bound-2)
+          (defpvar *eval-time-2-documented*
+              :ev-documented-2 "documentation"))
+        (defpvar *eval-time-2-packaged* 
+            :ev-packaged-2 "documentation" 'test-2)
+#+end_src
+
+#+name: test-p-vars-can-be-late-bound-3
+#+begin_src lisp
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    
+  (format t "~%ROUND TWO first round of tests...")
+    
+  (expect (and (eq *compile-time-1-unbound*    
+                   :updated-compile-time-1-unbound)
+               (eq *compile-time-1-bound*      
+                   :updated-compile-time-1-bound)
+               (eq *compile-time-1-documented* 
+                   :updated-compile-time-1-documented)
+               (eq *compile-time-1-packaged*   
+                   :updated-compile-time-1-packaged)))
+    
+  (expect (and (eq *eval-time-1-unbound*       
+                   :updated-eval-time-1-unbound)
+               (eq *eval-time-1-bound*         
+                   :updated-eval-time-1-bound)
+               (eq *eval-time-1-documented*    
+                   :updated-eval-time-1-documented)
+               (eq *eval-time-1-packaged*      
+                   :updated-eval-time-1-packaged)))
+    
+  (expect (and (eq *compile-time-2-unbound*    
+                   :updated-compile-time-2-unbound)
+               (eq *compile-time-2-bound*     
+                   :updated-compile-time-2-bound)
+               (eq *compile-time-2-documented* 
+                   :updated-compile-time-2-documented)
+               (eq *compile-time-2-packaged*  
+                   :updated-compile-time-2-packaged)))
+    
+  (expect (and (eq *eval-time-2-unbound* 
+                   :updated-eval-time-2-unbound)
+               (eq *eval-time-2-bound*  
+                   :updated-eval-time-2-bound)
+               (eq *eval-time-2-documented*  
+                   :updated-eval-time-2-documented)
+               (eq *eval-time-2-packaged*   
+                   :updated-eval-time-2-packaged)))
+    
+  ;; Redeclare these guys (as if a second time, 
+  ;; explicitly with slime -- or as if deleting package and
+  ;; reloading without reloading the data...
+  (makunbound '*eval-time-1-unbound*)
+  (makunbound '*eval-time-1-bound*)
+  (makunbound '*eval-time-1-documented*)
+  (makunbound '*eval-time-1-packaged*)
+  (let ((*default-set* 'test-1))
+    (declare (special *default-set*))   
+    (defpvar *eval-time-1-unbound*)
+    (defpvar *eval-time-1-bound*      :ev-bound-1)
+    (defpvar *eval-time-1-documented* :ev-documented-1 "documentation"))
+  (defpvar *eval-time-1-packaged*   :ev-packaged-1 "documentation" 'test-1)
+
+#+end_src
+
+#+name: test-p-vars-can-be-late-bound-4
+#+begin_src lisp
+    
+  (makunbound '*eval-time-2-unbound*)
+  (makunbound '*eval-time-2-bound*)
+  (makunbound '*eval-time-2-documented*)
+  (makunbound '*eval-time-2-packaged*)
+  (let ((*default-set* 'test-2))
+    (declare (special *default-set*))
+    (defpvar *eval-time-2-unbound*)
+    (defpvar *eval-time-2-bound*      :ev-bound-2)
+    (defpvar *eval-time-2-documented* :ev-documented-2 "documentation"))
+  (defpvar *eval-time-2-packaged*   :ev-packaged-2 "documentation" 'test-2)
+    
+  (format t "~%ROUND TWO second round of tests.")
+  (expect (and (not (boundp '*eval-time-1-unbound*))
+               (eq *eval-time-1-bound*         :ev-bound-1)
+               (eq *eval-time-1-documented*    :ev-documented-1)
+               (eq *eval-time-1-packaged*      :ev-packaged-1)))
+    
+  (expect (and (not (boundp '*eval-time-2-unbound*))
+               (eq *eval-time-2-bound*         :ev-bound-2)
+               (eq *eval-time-2-documented*    :ev-documented-2)
+               (eq *eval-time-2-packaged*      :ev-packaged-2)))))
+    
+#+end_src
+
+** Test p-vars ignores unbound variables
+
+This test ensures that saving unbound variables does
+nothing.  The variable is just not saved.
+
+#+name: test-p-vars-ignores-unbound-variables
+#+begin_src lisp
+    (defptest test-p-vars-ignores-unbound-variables ()
+      (:execute
+       (defpvar *unbound-variable*)
+       
+       ;; Unbound variables don't case saving errors.
+       (let ((saved (with-output-to-string (s) (pv-save s))))
+          
+         (setf *unbound-variable* :a-value)
+  
+         ;; But neither do they cause bound variables to unbind 
+         ;; upon loading.
+         (with-input-from-string (s saved) (pv-load s))
+         (expect (eq *unbound-variable* :a-value)))))
+#+end_src 
+
+** Test p-vars errors on unprintable variables
+
+This test ensures that we get a print-not-readable error
+if we attempt to save a value that cannot be read back.
+
+#+name: test-p-vars-errors-on-unprintable-variables
+#+begin_src lisp
+      (defptest test-p-vars-errors-on-unprintable-variables ()
+        (:execute
+         (defpvar *unprintable-variable* #'identity)
+         (expect (eq 'error (handler-case (with-output-to-string (s) (pv-save s))
+                              (print-not-readable () 'error))))))
+#+end_src 
+
+** TODO Test p-vars ignores deleted variables
+
+#+name: test-p-vars-ignores-deleted-variables
+#+begin_src lisp
+  (defptest test-p-vars-ignores-deleted-variables ()
+    (:execute
+     (when (find-package :persistent-variables.test.temporary)
+       (delete-package (find-package :persistent-variables.test.temporary)))
+     (let* ((var (let ((*package*
+                        (make-package
+                         :persistent-variables.test.temporary
+                         :use (list (find-package :persistent-variables)))))
+                   (prog1 (eval 
+                           (read-from-string
+                            "(defpvar *non-existant-variable* \"a-value\")"))
+                     (delete-package *package*))))
+            (saved (with-output-to-string (s) (pv-save s))))
+       (expect (string-equal (symbol-value var) "a-value"))
+       (setf (symbol-value var) "a-different-value")
+       (expect (string-equal (symbol-value var) "a-different-value"))
+       (with-input-from-string (s saved) (pv-load s))
+       
+       ;; However, the deleted variables are no longer saved.
+       ;; as evidence by it's failure to lead.
+       (expect (string-equal (symbol-value var) "a-different-value"))
+  
+     (let* ((var (let ((*package*
+                        (make-package
+                         :persistent-variables.test.temporary
+                         :use (list (find-package :persistent-variables)))))
+                   (eval
+                    (read-from-string
+                     "(defpvar *non-existant-variable* \"a-third-value\")")))))
+       (expect (string-equal (symbol-value var) "a-third-value"))
+       (with-input-from-string (s saved) (pv-load s))
+       ;; Still no change, because the variable was never saved.
+       (expect (string-equal (symbol-value var) "a-third-value"))
+       (delete-package *package*)))))
+#+end_src lisp
+
+** Test p-vars provides loading restarts
+
+Save a non readable object (a function) and then load it. It should
+give us two restarts (on every lisp implementation).
+
+But the is SBCL because it depends on the non-standard
+sb-ext:print-unreadably restart. 
+
+#+name: test-p-vars-provides-loading-restarts
+#+begin_src lisp
+  #+sbcl 
+  (defptest test-p-vars-provides-loading-restarts ()
+    (:compile
+     (defpvar *bad-var-1* #'identity)
+     (defpvar *bad-var-2* #'identity)
+     (defvar *storage*
+       (handler-bind ((print-not-readable
+                       #'(lambda (e) (declare (ignore e)) 
+                            (invoke-restart
+                             'sb-ext:print-unreadably))))
+         (with-output-to-string (s) (pv-save s)))))
+    (:execute
+     (makunbound '*bad-var-1*)
+     (makunbound '*bad-var-2*)
+     (handler-bind ((unloadable-variable
+                     #'(lambda (e)
+                         (if (eq (name e) '*bad-var-1*)
+                             (invoke-restart
+                              'use-value :a-new-value)
+                             (invoke-restart
+                              'skip-variable)))))
+       (with-input-from-string (s *storage*) (pv-load s))
+       (expect (eq *bad-var-1* :a-new-value))
+       (expect (not (boundp '*bad-var-2*))))))
+#+end_src lisp     
+
+* License
+
+Persister is distributed under the [[http://opensource.org/licenses/lgpl-2.1.php][LGPL2]] License. 
+
+* Tangles							   :NOEXPORT:
+** Copyright
+#+name: copyright
+#+begin_src lisp 
+;;; Copyright (c) 2013, Warren Wilkinson.  All rights reserved.
+
+;;; BEGIN_LICENSE:LGPL2
+;;;
+;;; This library is free software: you can redistribute it and/or modify
+;;; it under the terms of the GNU Library General Public License as published by
+;;; the Free Software Foundation; version 2.
+;;;
+;;; This library is distributed in the hope that it will be useful,
+;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;; GNU Library General Public License for more details.
+;;;
+;;; You should have received a copy of the GNU Library General Public License
+;;; along with this library; see the file COPYING.LIB.  If not, write to
+;;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;;; Boston, MA 02110-1301, USA.
+;;;
+;;; END_LICENSE
+#+end_src 
+
+** persistent-variables.lisp
+
+#+begin_src lisp :tangle persistent-variables.lisp :noweb yes 
+  ;;; -*- Mode: LISP; Syntax: common-lisp; Package: persistent-variables; Base: 10 -*-
+  
+  <<copyright>> 
+
+  (defpackage :persistent-variables
+    (:use :common-lisp)
+    (:nicknames :pv)
+    (:export defpvar pv-save pv-load *default-set* persist unpersist
+             unloadable-variable skip-variable use-value name text expression))
+
+  (in-package :persistent-variables)
+
+  <<persist>>
+
+  <<pv-save>>
+
+  <<pv-read>>
+
+  <<pv-load>>
+
+  <<pv-load-extra>>
+
+  <<defpvar>>
+
+#+end_src
+
+** test.lisp
+
+#+begin_src lisp :tangle test.lisp :noweb yes 
+  ;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: persister.test; Base: 10 -*-
+  
+  <<copyright>>
+  
+  (defpackage :persistent-variables.test
+    (:use :common-lisp :persistent-variables)
+    (:export run-tests expect *success*))
+  
+  (in-package :persistent-variables.test)
+  
+  <<test-maker>>
+  
+  <<result-runner-and-printer>>
+  
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
+  <<defptest>>
+
+  <<test-p-vars-are-definable>>
+
+  <<test-p-vars-can-be-saved-and-loaded-1>>
+  <<test-p-vars-can-be-saved-and-loaded-2>>
+
+  <<test-p-vars-can-load-from-different-packages>>
+
+  <<test-p-vars-can-be-late-bound-1>>
+  <<test-p-vars-can-be-late-bound-2>>
+  <<test-p-vars-can-be-late-bound-3>>
+  <<test-p-vars-can-be-late-bound-4>>
+ 
+  <<test-p-vars-ignores-unbound-variables>>
+
+  <<test-p-vars-errors-on-unprintable-variables>>
+
+  <<test-p-vars-ignores-deleted-variables>>
+
+  <<test-p-vars-provides-loading-restarts>>
+
+#+end_src
+
+** persistent-variables.asd
+
+#+begin_src lisp :tangle persistent-variables.asd :noweb yes
+  ;;; -*- Mode: LISP; Syntax: COMMON-LISP;  Base: 10 -*-
+    
+  <<copyright>>
+    
+  (defsystem :persistent-variables
+    :name "persistent-variables"
+    :version "1.0.0"
+    :author "Warren Wilkinson <warrenwilkinson@gmail.com>"
+    :license "lgpl2"
+    :description "A library for persistent global variables."
+    :components ((:file "persistent-variables"))
+    :in-order-to ((test-op (load-op persistent-variables.test))))
+  
+  (defsystem :persistent-variables.test
+    :name "persistent-variables.test"
+    :version "1.0.0"
+    :author "Warren Wilkinson <warrenwilkinson@gmail.com>"
+    :description "Testing code for the persistent-variables library"
+    :licence "LGPL2"
+    :depends-on (:persistent-variables)
+    :components ((:file "test")))
+      
+  (defmethod perform ((op asdf:test-op) (system (eql (find-system :persistent-variables))))
+    (funcall (intern "RUN-TESTS" :persistent-variables.test)))
+  
+#+end_src
+
+* Stuff To Do							   :NOEXPORT:
+** TODO Get a github account place to put this on.
+https://github.com/WarrenWilkinson/read-csv
+** DONE Make it main source Tanglable
+** DONE Tangle and ASDF load
+** DONE Write the tests
+** DONE Make the tests work.
+** TODO Publish this as HTML and make it the projects webpage.
+** TODO package and release.
+*** TODO Get an ebuild done.
+*** WAITING Get it onto quicklisp.
+*** TODO Get integration with cl-test-grid
+https://github.com/cl-test-grid/cl-test-grid
+
+
+
+
+
+
+
+
