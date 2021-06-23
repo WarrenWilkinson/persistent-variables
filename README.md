@@ -13,12 +13,12 @@ is defined), and a test suite.
 
 <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">At the Repl: </span>
 (setf *my-account-password* <span style="color: #deb887;">"the-password"</span>)
-(<span style="color: #00bfff; font-weight: bold;">with-open-file</span> (s <span style="color: #deb887;">"/path/to/somewhere/else"</span>)
-  (p-save s))
+(<span style="color: #00bfff; font-weight: bold;">with-open-file</span> (s <span style="color: #deb887;">"/path/to/somewhere/else"</span> :direction :output :if-does-not-exist :create :if-exists :append)
+  (pv-save s))
 
 <span style="color: #5f9ea0; font-style: italic;">;; </span><span style="color: #5f9ea0; font-style: italic;">Later, at startup:</span>
-(<span style="color: #00bfff; font-weight: bold;">with-open-file</span> (s <span style="color: #deb887;">"/path/to/somewhere/else"</span>)
-  (p-load s))
+(<span style="color: #00bfff; font-weight: bold;">with-open-file</span> (s <span style="color: #deb887;">"/path/to/somewhere/else"</span> :direction :output :if-does-not-exist :create :if-exists :append)
+  (pv-load s))
 </pre>
 
 </div>
